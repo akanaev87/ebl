@@ -30,6 +30,34 @@ python3 scripts/extract.py
 python3 scripts/geocode.py   # долго: Nominatim разрешает 1 запрос/сек, результаты кэшируются в scripts/geocache.json
 ```
 
+## Боевая версия: Supabase + GitHub Pages
+
+- `supabase/migrations/` — схема: участники и Telegram-аккаунты, бани, журнал походов, отзывы, входящий остаток из таблицы, политики доступа.
+- `supabase/functions/tg-login` — вход через Telegram Login Widget (проверка подписи токеном бота → сессия Supabase).
+- `supabase/functions/recompute` — пересчёт таблицы по регламенту (`_shared/scoring.js`).
+- `prototype/db.js` — слой данных сайта; `prototype/config.js` — адрес проекта и публичный ключ (пусто — режим витрины).
+
+Кто что видит: карта, таблица, тепловая карта и отзывы — все; лента походов, компании и фото — только участники лиги после входа.
+Отметить поход можно только от своего имени, засчитывает секретарь Комиссии.
+
+Переход с таблицы: недели до `cutover_week` (по умолчанию W40) берутся из таблицы секретаря как входящий остаток,
+дальше всё считает портал. Перед запуском перевыгрузи таблицу после закрытия последней «табличной» недели.
+
+Запуск в новом проекте:
+
+```bash
+supabase login
+supabase secrets set TELEGRAM_BOT_TOKEN=<токен от BotFather> --project-ref <ref>
+scripts/deploy-backend.sh <ref>
+```
+
+Потом впиши в `prototype/config.js` адрес `https://<ref>.supabase.co`, publishable key и username бота, выложи сайт `scripts/deploy.sh`.
+Секретаря назначает SQL: `update players set is_secretary = true where nick = '<ник>';`.
+Username участников можно вписать заранее — тогда при первом входе привязка произойдёт сама:
+`insert into player_accounts (player_id, tg_username) select id, '<username>' from players where nick = '<ник>';`
+
+Локальная проверка: `supabase start`, `supabase functions serve --env-file supabase/functions/.env`.
+
 ## Как устроена таблица сейчас
 
 - `все бани` — матрица «баня × участник → число походов» за сезон, плюс страна и регион. Строки прошлых лет тоже здесь (нужны для ультрауникальных).

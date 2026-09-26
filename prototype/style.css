@@ -301,6 +301,25 @@ h3 { font: 600 12px/1 var(--body); text-transform: uppercase; letter-spacing: .0
 .rvform .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rvform .sel { width: auto; height: 36px; font-size: 13px; }
 
+/* ---------- вход и профиль ---------- */
+.me-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-weight: 600; padding: 4px 14px 4px 4px; border-radius: 999px; white-space: nowrap; }
+.me-btn .ava { --s: 30px; box-shadow: none; }
+.me-btn .ic { width: 18px; height: 18px; margin-left: 8px; }
+.me-btn:hover { border-color: var(--ink-3); }
+.sheet-narrow { width: min(460px, 100%); }
+.login { padding: 30px 28px 28px; display: grid; gap: 12px; }
+.login h2 { font: 800 28px/1.05 var(--display); margin: 0; letter-spacing: -.02em; }
+.login .lead { margin: 0; font-size: 15px; }
+.tg-widget { min-height: 48px; display: flex; align-items: center; }
+.p-mini { display: flex; gap: 16px; align-items: center; margin-bottom: 8px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--ink-3); text-decoration: underline; font-size: 13px; }
+.post.sec { margin-bottom: 12px; border: 1.5px dashed var(--honey); }
+.sec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.sec-row:last-child { border-bottom: 0; }
+.sec-row > span { flex: 1; min-width: 200px; }
+.sec-row .sel { width: auto; height: 34px; font-size: 13px; }
+.post-pts small { font-family: var(--body); font-weight: 500; }
+
 /* ---------- тепловая карта ---------- */
 .view-heat { position: relative; --heat-bg: var(--bg); --heat-grad: linear-gradient(90deg, #fdd49e, #fdae6b, #f16913, #d7301f, #a50f15, #5c0010); --year-stroke: color-mix(in srgb, var(--ember) 45%, transparent); background: var(--heat-bg); }
 .view-heat[data-style="dark"], .view-heat[data-style="sat"] { --heat-bg: #07090a; --heat-grad: linear-gradient(90deg, #4a1203, #9c2a06, #e4561a, #f7962c, #fdd36a, #ffffff); --year-stroke: rgba(255, 170, 90, .4); }
@@ -602,6 +621,7 @@ tr.below { color: var(--ink-2); }
   .stats.four { grid-template-columns: repeat(2, 1fr); }
   .p-head { padding: 24px 18px 16px; } .p-body { padding: 8px 18px 24px; }
 }
+@media (max-width: 560px) { .me-btn span { display: none; } .me-btn { padding: 4px; } .me-btn .ic { margin: 0 6px; } }
 @media (max-width: 420px) {
   .cta#addVisitBtn span { display: none; }
   .cta#addVisitBtn { padding: 10px; }

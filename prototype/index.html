@@ -74,6 +74,7 @@
     <button role="tab" data-view="feed"><svg class="ic"><use href="#i-feed"/></svg><span>Лента</span><b class="badge" id="pendingBadge" hidden>0</b></button>
     <button role="tab" data-view="rules"><svg class="ic"><use href="#i-doc"/></svg><span>Правила</span></button>
   </nav>
+  <button class="me-btn" id="meBtn" hidden></button>
   <button class="cta" id="addVisitBtn"><svg class="ic"><use href="#i-plus"/></svg><span>Отметить баню</span></button>
 </header>
 
@@ -171,8 +172,9 @@
           <h1>Лента походов</h1>
         </div>
       </div>
-      <p class="lead">Отметил баню — поход появился здесь. Очки видно сразу, в таблицу они идут после подтверждения секретарём Комиссии. В прототипе лента хранится только в твоём браузере.</p>
+      <p class="lead">Отметил баню — поход появился здесь. Очки видно сразу, в таблицу они идут после подтверждения секретарём Комиссии.</p>
       <label class="switch"><input type="checkbox" id="secMode"><span class="track"><span class="thumb"></span></span>Я секретарь Комиссии</label>
+      <div id="secPanel"></div>
       <div class="feed" id="feed"></div>
     </div>
   </section>
@@ -294,6 +296,14 @@
   </div>
 </div>
 
+<!-- модалка: вход и профиль -->
+<div class="modal" id="loginModal" hidden>
+  <div class="sheet sheet-narrow" role="dialog" aria-modal="true">
+    <button class="x" data-close aria-label="Закрыть"><svg class="ic"><use href="#i-close"/></svg></button>
+    <div class="login" id="loginBody"></div>
+  </div>
+</div>
+
 <!-- модалка: участник -->
 <div class="modal" id="playerModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true">
@@ -308,6 +318,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="config.js?v=20260926121714"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="db.js?v=20260926121714"></script>
 <script src="app.js?v=20260926121714"></script>
 </body>
 </html>
