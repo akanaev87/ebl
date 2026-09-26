@@ -1,5 +1,5 @@
-/* ЕБЛ — прототип портала. Данные бань и зачёта — выгрузка из таблицы секретаря;
-   походы, отзывы и новые бани в прототипе живут в localStorage браузера. */
+/* ЕБЛ — портал Евразийской банной лиги. Данные — через db.js: Supabase в боевом режиме,
+   выгрузка таблицы секретаря и localStorage в режиме витрины. */
 (async function () {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -9,23 +9,25 @@
   const TYPE_LABEL = { public: "Общественная", spa: "Спа и фитнес", private: "Частная", unknown: "Тип не указан" };
   const PREC_LABEL = { city: "по городу из названия", region: "по центру региона", country: "по центру страны" };
   const PLACE_PTS = [15, 12, 10, 8, 6, 4, 2, 1];
-  const DATA_DATE = "25 сентября";
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // ---------- хранилище прототипа ----------
-  const store = {
-    get(k, d) { try { return JSON.parse(localStorage.getItem("ebl:" + k)) ?? d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem("ebl:" + k, JSON.stringify(v)); } catch {} },
-  };
-  let visits = store.get("visits", []);
-  const reviews = store.get("reviews", {});
-  const newBaths = store.get("newBaths", []);
-
   // ---------- данные ----------
-  const load = (f) => fetch("data/" + f, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  const [baseBaths, standings, coords] = await Promise.all([load("baths.json"), load("standings.json"), load("coords.json")]);
-  const players = standings.map((s) => s.name);
-  const baths = [...baseBaths, ...newBaths];
+  const D = window.EBLData, store = D.store;
+  let data;
+  try { data = await D.load(); } catch (e) {
+    document.body.insertAdjacentHTML("beforeend", `<div class="toast">Не получилось загрузить данные: ${esc(e.message)}. Обнови страницу.</div>`);
+    throw e;
+  }
+  const me = data.me;                 // null — не вошёл или витрина; me.nick === null — вошёл, но ещё не привязан к участнику
+  const member = !D.live || !!me?.nick;
+  const canModerate = !D.live || !!me?.isSecretary;
+  let visits = data.visits;
+  const reviews = data.reviews;
+  const standings = data.standings;
+  const players = data.players?.length ? data.players : standings.map((s) => s.name);
+  const baths = data.baths;
+  const updatedAt = D.live && standings[0]?.updatedAt ? new Date(standings[0].updatedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : null;
+  const DATA_NOTE = updatedAt ? `обновлено ${updatedAt}` : "по таблице на 25 сентября";
   const byId = new Map(baths.map((b) => [b.id, b]));
   baths.forEach(hydrate);
   // все, кто хоть раз парился в 2023–2026 (ники из таблиц прошлых сезонов)
@@ -43,7 +45,7 @@
     b.nHist = Object.values(b.hist || {}).reduce((a, x) => a + x, 0);
     b.nAll = b.n26 + b.nHist;
     b.search = [b.name, b.region, b.country].join(" ").toLowerCase();
-    const c = b.lat != null ? [b.lat, b.lng, "exact"] : coords?.[b.id];
+    const c = b.lat != null ? [b.lat, b.lng, b.precision || "exact"] : null;
     if (c) {
       const [lat, lng, prec] = c;
       // примерные точки разносим детерминированно, чтобы бани одного города не слипались
@@ -217,7 +219,7 @@
           <span><span class="rn">${esc(n)}</span><span class="rbar" style="--w:${(c / max) * 100}%"></span></span>
           <span class="rv"><b>${c}</b><small>+${fmt(pts[n])}</small></span>
         </li>`).join("")}</ol>
-      <div class="race-foot">${rows.length > 5 ? `и ещё ${rows.length - 5} в гонке · ` : ""}по таблице на ${DATA_DATE}</div>`;
+      <div class="race-foot">${rows.length > 5 ? `и ещё ${rows.length - 5} в гонке · ` : ""}${DATA_NOTE}</div>`;
     $("#race").classList.toggle("open", wasOpen);
     $(".race-toggle", $("#race")).onclick = () => $("#race").classList.toggle("open");
     $$("#race [data-player]").forEach((li) => (li.onclick = () => openPlayer(li.dataset.player)));
@@ -287,14 +289,15 @@
               <p>${esc(r.text)}</p></div></div>`).join("") : `<p class="hint" style="margin:0">Отзывов пока нет — расскажи про пар первым.</p>`}
           </div>
         </section>
+        ${!member ? `<div class="rvform"><p class="hint" style="margin:0">Отзывы пишут участники лиги.</p><button class="btn solid" type="button" id="rvLogin" style="justify-self:start">${D.live && me ? "Кто ты в таблице?" : "Войти через Telegram"}</button></div>` : `
         <form class="rvform" id="rvForm">
           <div class="row">
             <div class="rate" id="rvRate" role="radiogroup" aria-label="Оценка в вениках">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" role="radio" aria-checked="${n === 4}" aria-label="${n} из 5">${leafSvg(n <= 4).replace('class="leaf', 'class="leaf big')}</button>`).join("")}</div>
-            <select id="rvAuthor" class="sel" aria-label="Автор">${players.map((p) => `<option ${p === store.get("me", "") ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
+            ${D.live ? `<span class="hint">от имени <b>${esc(me.nick)}</b></span>` : `<select id="rvAuthor" class="sel" aria-label="Автор">${players.map((p) => `<option ${p === store.get("me", "") ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`}
           </div>
           <textarea id="rvText" class="inp" placeholder="Какой пар, веники, купель, мужские часы, цены…" required></textarea>
           <button class="btn solid" type="submit" style="justify-self:start">Опубликовать отзыв</button>
-        </form>
+        </form>`}
       </div>`;
     d.hidden = false;
     $(".x", d).onclick = closeBath;
@@ -303,12 +306,18 @@
     const rateBtns = $$("#rvRate button", d);
     const setRate = (n) => rateBtns.forEach((x) => { const on = +x.dataset.r <= n; x.setAttribute("aria-checked", String(+x.dataset.r === n)); $(".leaf", x).classList.toggle("on", on); });
     rateBtns.forEach((x) => (x.onclick = () => setRate(+x.dataset.r)));
-    $("#rvForm", d).onsubmit = (e) => {
+    $("#rvLogin", d)?.addEventListener("click", () => (me ? openClaim() : openLogin()));
+    const rvForm = $("#rvForm", d);
+    if (rvForm) rvForm.onsubmit = async (e) => {
       e.preventDefault();
       const text = $("#rvText", d).value.trim(); if (!text) return;
       const rate = +(rateBtns.find((x) => x.getAttribute("aria-checked") === "true")?.dataset.r || 4);
-      (reviews[id] ||= []).unshift({ author: $("#rvAuthor", d).value, rate, text, at: Date.now() });
-      store.set("reviews", reviews); toast("Отзыв опубликован — спасибо за пар"); openBath(id);
+      const author = D.live ? me.nick : $("#rvAuthor", d).value;
+      try {
+        await D.submitReview(id, author, rate, text);
+        if (D.live) reviews[id] = [{ author, rate, text, at: Date.now() }, ...(reviews[id] || []).filter((r) => r.author !== author)];
+        toast("Отзыв опубликован — спасибо за пар"); openBath(id);
+      } catch (err) { toast("Отзыв не сохранился: " + err.message); }
     };
   }
   function closeBath() { $("#drawer").hidden = true; openId = null; $$(".pin.sel").forEach((p) => p.classList.remove("sel")); $$(".item.active").forEach((x) => x.classList.remove("active")); }
@@ -434,7 +443,7 @@
       .map(([n, l]) => `<div><b>${n.toLocaleString("ru-RU")}</b><span>${l}</span></div>`).join("");
     $("#hTop").innerHTML = rows.slice(0, 7).map(([b, n], i) => `<li data-id="${b.id}"><span class="hk">${i + 1}</span><span><span class="hn">${esc(b.name)}</span><span class="hm">${esc(where(b))}</span></span><span class="hv">${n}</span></li>`).join("")
       || `<li><span></span><span class="hm">${player ? `${esc(player)} в этом году не парился` : "Пусто"}</span></li>`;
-    $("#hNote").textContent = heatYear === 2026 ? `Сезон 2026 — по таблице на ${DATA_DATE}.` : "Походы прошлых лет привязаны к баням по названию, около 2% не нашли пару в справочнике.";
+    $("#hNote").textContent = heatYear === 2026 ? `Сезон 2026 — ${DATA_NOTE}.` : "Походы прошлых лет привязаны к баням по названию, около 2% не нашли пару в справочнике.";
     const mark = $("#heatYearMark");
     mark.textContent = heatYear === "all" ? "2023–26" : heatYear;
     mark.classList.remove("flash"); void mark.offsetWidth; mark.classList.add("flash");
@@ -524,8 +533,11 @@
   let picked = null, newPin = null, pickMap = null, pickMarker = null, lastTotal = 0;
 
   function openVisit({ bathId } = {}) {
+    if (D.live && !me) return openLogin();
+    if (D.live && !me.nick) return openClaim();
     vf.reset();
-    $("#vPlayer").value = store.get("me", players[0]);
+    $("#vPlayer").value = D.live ? me.nick : store.get("me", players[0]);
+    $("#vPlayer").disabled = D.live;
     $("#vDate").value = mskNow();
     setDur(120);
     $("#vPhotosLabel").textContent = "Прикрепить фото";
@@ -656,26 +668,35 @@
     el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
   }
 
-  vf.addEventListener("submit", (e) => {
+  vf.addEventListener("submit", async (e) => {
     e.preventDefault();
     const r = score();
-    if (!r.total) return;
-    let bathId = picked.id;
+    if (!r.total || vf.dataset.busy) return;
+    let newBath = null;
     if (picked === "new") {
       const name = $("#nbName").value.trim();
       if (!name) { toast("Впиши название новой бани"); $("#nbName").focus(); return; }
-      const nb = { id: 100000 + newBaths.length + 1, name, country: $("#nbCountry").value.trim() || null, region: $("#nbRegion").value.trim() || null,
-        type: $("#nbType").value, v26: {}, hist: {}, isNew: true, ...(newPin ? { lat: newPin[0], lng: newPin[1] } : {}) };
-      newBaths.push(nb); store.set("newBaths", newBaths);
-      hydrate(nb); baths.push(nb); byId.set(nb.id, nb); bathId = nb.id;
+      newBath = { name, country: $("#nbCountry").value.trim() || null, region: $("#nbRegion").value.trim() || null, type: $("#nbType").value,
+        ...(newPin ? { lat: newPin[0], lng: newPin[1], precision: "exact" } : {}) };
     }
-    visits.unshift({ id: Date.now(), player: r.player, companions: r.comp, bathId, date: r.date, week: r.week, dur: r.dur, proof: r.proof,
-      photos: $("#vPhotos").files.length, lines: r.lines.filter((l) => l[1]), total: r.total, status: "pending", at: Date.now() });
-    store.set("visits", visits);
-    leafBurst($("#vSubmit"));
-    setTimeout(() => { $("#visitModal").hidden = true; }, calm ? 0 : 450);
-    updateBadge(); render();
-    toast(`С лёгким паром! <b>+${r.total}</b> ушло на модерацию`, true);
+    const payload = { bathId: picked.id, newBath, date: r.date, week: r.week, dur: r.dur, proof: r.proof, files: [...$("#vPhotos").files],
+      companions: r.comp, player: r.player, lines: r.lines.filter((l) => l[1]), total: r.total };
+    vf.dataset.busy = "1"; $("#vSubmit span").textContent = "Отправляю…";
+    try {
+      const saved = await D.submitVisit(payload);
+      if (payload.createdBath) { const nb = payload.createdBath; hydrate(nb); baths.push(nb); byId.set(nb.id, nb); }
+      if (D.live) visits.unshift({ id: saved.id, player: r.player, companions: r.comp, bathId: payload.bathId, date: r.date, posted: mskNow(), dur: r.dur,
+        proof: r.proof, proofs: { [r.player]: r.proof }, photos: payload.files.length, lines: [], total: null, preview: r.total, status: "pending" });
+      leafBurst($("#vSubmit"));
+      setTimeout(() => { $("#visitModal").hidden = true; }, calm ? 0 : 450);
+      updateBadge(); render();
+      if (!$("#view-feed").hidden) renderFeed();
+      toast(`С лёгким паром! <b>+${r.total}</b> ушло на модерацию`, true);
+    } catch (err) {
+      toast("Поход не сохранился: " + err.message);
+    } finally {
+      delete vf.dataset.busy; $("#vSubmit span").textContent = "Отправить";
+    }
   });
 
   // листопад из дубовых листьев
@@ -701,14 +722,24 @@
   }
   const STATUS = { pending: "на модерации", ok: "засчитан", rejected: "отклонён" };
   const fmtDate = (s) => new Date(s + ":00Z").toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  $(".switch").hidden = !canModerate;
   function renderFeed() {
-    const sec = $("#secMode").checked;
+    if (!member) {
+      $("#feed").innerHTML = `<div class="empty">${markSvg()}<b>Лента — для участников лиги</b><p>${me ? "Выбери свой ник из таблицы — секретарь подтвердит, и лента откроется." : "Войди через Telegram тем же аккаунтом, что в группе."}</p><button class="cta" id="emptyLogin">${icon("check")}<span>${me ? "Кто ты в таблице?" : "Войти через Telegram"}</span></button></div>`;
+      $("#emptyLogin").onclick = () => (me ? openClaim() : openLogin());
+      return;
+    }
+    const sec = canModerate && $("#secMode").checked;
+    if (sec && D.live) renderSecPanel(); else $("#secPanel").innerHTML = "";
     $("#feed").innerHTML = visits.length ? visits.map((v) => {
       const b = byId.get(v.bathId);
+      const week = v.week ?? weekOf(v.posted || v.date);
+      const pts = v.total ?? v.preview;
+      const needProof = D.live && me?.nick && v.companions.includes(me.nick) && v.dur > 150 && !v.proofs?.[me.nick] && v.status !== "rejected";
       return `<article class="post">
         <div class="post-head">
           <span class="stack">${[v.player, ...v.companions].slice(0, 4).map((p) => ava(p)).join("")}</span>
-          <div class="post-who"><b>${esc(v.player)}</b>${v.companions.length ? ` и ещё ${v.companions.length}` : ""}<small>${fmtDate(v.date)} МСК · W${v.week}</small></div>
+          <div class="post-who"><b>${esc(v.player)}</b>${v.companions.length ? ` и ещё ${v.companions.length}` : ""}<small>${fmtDate(v.date)} МСК · W${week}${v.companions.length ? " · " + v.companions.map(esc).join(", ") : ""}</small></div>
           <span class="status ${v.status}">${STATUS[v.status]}</span>
         </div>
         <div><a class="post-bath" href="#map" data-bath="${v.bathId}">${esc(b?.name || "баня")}</a><div class="hint">${esc(b ? where(b) : "")}</div></div>
@@ -718,7 +749,8 @@
           ${v.lines.map((l) => `<span>${esc(l[0].split(" · ")[0])} +${l[1]}</span>`).join("")}
         </div>
         <div class="post-head" style="justify-content:space-between">
-          <span class="post-pts">+${v.total}</span>
+          <span class="post-pts">${pts != null ? "+" + fmt(pts) : ""}${v.total == null && v.status === "pending" ? '<small class="hint"> по талону</small>' : ""}</span>
+          ${needProof ? `<label class="btn sm">${icon("camera")}У меня тоже есть фото<input type="file" accept="image/*" multiple hidden data-proof="${v.id}"></label>` : ""}
           ${sec && v.status === "pending" ? `<span class="post-actions"><button class="btn sm solid" data-ok="${v.id}">${icon("check")}Засчитать</button><button class="btn sm danger" data-no="${v.id}">Отклонить</button></span>` : ""}
         </div>
       </article>`;
@@ -729,9 +761,45 @@
   $("#feed").addEventListener("click", (e) => {
     const ok = e.target.closest("[data-ok]")?.dataset.ok, no = e.target.closest("[data-no]")?.dataset.no, bl = e.target.closest("[data-bath]");
     if (ok || no) {
-      const v = visits.find((x) => x.id === +(ok || no)); v.status = ok ? "ok" : "rejected";
-      store.set("visits", visits); updateBadge(); renderFeed(); toast(ok ? "Засчитано" : "Отклонено");
+      const v = visits.find((x) => x.id === +(ok || no));
+      D.moderate(v.id, ok ? "ok" : "rejected").then(() => {
+        v.status = ok ? "ok" : "rejected";
+        updateBadge(); renderFeed(); toast(ok ? "Засчитано — таблица пересчитывается" : "Отклонено");
+        return D.recompute();
+      }).catch((err) => toast("Не получилось: " + err.message));
     } else if (bl) { e.preventDefault(); show("map"); openBath(+bl.dataset.bath, true); }
+  });
+  $("#feed").addEventListener("change", async (e) => {
+    const inp = e.target.closest("[data-proof]"); if (!inp || !inp.files.length) return;
+    try {
+      await D.confirmProof(+inp.dataset.proof, [...inp.files]);
+      const v = visits.find((x) => x.id === +inp.dataset.proof); (v.proofs ||= {})[me.nick] = true;
+      renderFeed(); toast("Фото приложены — секретарь увидит");
+    } catch (err) { toast("Фото не загрузились: " + err.message); }
+  });
+
+  // секретарь: заявки «это я» и новые бани
+  async function renderSecPanel() {
+    const box = $("#secPanel");
+    const accounts = await D.pendingAccounts().catch(() => []);
+    const newOnes = baths.filter((b) => b.isNew);
+    if (!accounts.length && !newOnes.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<div class="post sec">
+      ${accounts.length ? `<h3>Заявки «это я» · ${accounts.length}</h3>${accounts.map((a) => `<div class="sec-row"><span><b>${esc(a.tg_name || "")}</b> ${a.tg_username ? "@" + esc(a.tg_username) : ""} — говорит, что это <b>${esc(a.claimed_nick)}</b></span>
+        <button class="btn sm solid" data-link="${a.id}" data-nick="${esc(a.claimed_nick)}">Подтвердить</button></div>`).join("")}` : ""}
+      ${newOnes.length ? `<h3>Новые бани · ${newOnes.length}</h3>${newOnes.map((b) => `<div class="sec-row"><span><b>${esc(b.name)}</b> · ${esc(where(b))}</span>
+        <select class="sel" data-btype="${b.id}"><option value="public" ${b.type === "public" ? "selected" : ""}>Общественная</option><option value="spa" ${b.type === "spa" ? "selected" : ""}>Спа</option><option value="private" ${b.type === "private" ? "selected" : ""}>Частная</option></select>
+        <button class="btn sm solid" data-bok="${b.id}">Принять</button><button class="btn sm danger" data-bno="${b.id}">Дубль</button></div>`).join("")}` : ""}
+    </div>`;
+  }
+  $("#secPanel").addEventListener("click", async (e) => {
+    const t = e.target.closest("button"); if (!t) return;
+    try {
+      if (t.dataset.link) { await D.linkAccount(t.dataset.link, t.dataset.nick); toast(`${t.dataset.nick} привязан`); }
+      if (t.dataset.bok) { const id = +t.dataset.bok; await D.moderateBath(id, { status: "ok", type: $(`[data-btype="${id}"]`).value }); byId.get(id).isNew = false; toast("Баня в справочнике"); }
+      if (t.dataset.bno) { const id = +t.dataset.bno; await D.moderateBath(id, { status: "rejected" }); byId.get(id).isNew = false; toast("Баня отклонена"); }
+      renderSecPanel();
+    } catch (err) { toast("Не получилось: " + err.message); }
   });
 
   // ---------- общее ----------
@@ -750,9 +818,58 @@
     tt = setTimeout(() => t.remove(), 3000);
   }
 
-  // пара примерных отзывов на самую посещаемую баню, чтобы было видно, как это выглядит
+  // ---------- вход через Telegram ----------
+  function openLogin() {
+    if (!D.live) return;
+    $("#loginBody").innerHTML = `<div class="eyebrow">Для участников лиги</div><h2>Вход в ЕБЛ</h2>
+      <p class="lead">Входи через Telegram тем же аккаунтом, что в группе. Мы видим только имя и username — телефон остаётся у Telegram.</p>
+      <div id="tgWidget" class="tg-widget"></div><p class="hint" id="loginErr"></p>`;
+    const sc = document.createElement("script");
+    sc.async = true; sc.src = "https://telegram.org/js/telegram-widget.js?22";
+    sc.dataset.telegramLogin = window.EBL_CONFIG.telegramBot; sc.dataset.size = "large"; sc.dataset.radius = "12"; sc.dataset.onauth = "EBLonTelegramAuth(user)";
+    $("#tgWidget").append(sc);
+    $("#loginModal").hidden = false;
+  }
+  window.EBLonTelegramAuth = async (user) => {
+    try { await D.login(user); location.reload(); } catch (err) { $("#loginErr").textContent = err.message; }
+  };
+  function openClaim() {
+    const waiting = me?.claimedNick;
+    $("#loginBody").innerHTML = `<div class="eyebrow">Почти готово</div><h2>Кто ты в таблице?</h2>
+      ${waiting ? `<p class="lead">Заявка ушла: ты — <b>${esc(waiting)}</b>. Как только секретарь подтвердит, откроются лента и отметки походов.</p>` :
+      `<p class="lead">Выбери свой ник — секретарь Комиссии подтвердит, что это ты.</p>`}
+      <div class="grid2"><select id="claimNick" class="sel">${[...players].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option ${p === waiting ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
+      <button class="cta" id="claimBtn"><span>${waiting ? "Поменять заявку" : "Это я"}</span></button></div>
+      <p class="hint" style="margin-top:14px"><button class="linkbtn" id="logoutBtn">Выйти</button></p>`;
+    $("#claimBtn").onclick = async () => {
+      try { await D.claim($("#claimNick").value); toast("Заявка ушла секретарю"); me.claimedNick = $("#claimNick").value; openClaim(); }
+      catch (err) { toast(err.message); }
+    };
+    $("#logoutBtn").onclick = async () => { await D.logout(); location.reload(); };
+    $("#loginModal").hidden = false;
+  }
+  function renderMe() {
+    const btn = $("#meBtn");
+    if (!D.live) { btn.hidden = true; return; }
+    btn.hidden = false;
+    if (!me) btn.innerHTML = `${icon("check")}<span>Войти</span>`;
+    else if (!me.nick) btn.innerHTML = `${ava(me.claimedNick || "?")}<span>${me.claimedNick ? "Ждём секретаря" : "Кто ты?"}</span>`;
+    else btn.innerHTML = `${ava(me.nick)}<span>${esc(me.nick)}</span>`;
+    btn.onclick = () => {
+      if (!me) return openLogin();
+      if (!me.nick) return openClaim();
+      $("#loginBody").innerHTML = `<div class="p-mini">${ava(me.nick, "lg")}<div><div class="eyebrow">${me.isSecretary ? "Секретарь Комиссии" : "Участник лиги"}</div><h2>${esc(me.nick)}</h2></div></div>
+        <div class="grid2"><button class="btn" id="myProfile">${icon("trophy")}Мой сезон</button><button class="btn danger" id="logoutBtn">Выйти</button></div>`;
+      $("#myProfile").onclick = () => { $("#loginModal").hidden = true; openPlayer(me.nick); };
+      $("#logoutBtn").onclick = async () => { await D.logout(); location.reload(); };
+      $("#loginModal").hidden = false;
+    };
+  }
+  renderMe();
+
+  // пара примерных отзывов на самую посещаемую баню, чтобы в витрине было видно, как это выглядит
   const top = [...baths].sort((a, b) => b.n26 - a.n26)[0];
-  if (top && !store.get("seeded2", false)) {
+  if (!D.live && top && !store.get("seeded2", false)) {
     reviews[top.id] = [
       { author: "Пример", rate: 5, text: "Пар держат до закрытия, веники свежие, в мужской день людно — лучше с утра.", sample: true },
       { author: "Пример", rate: 4, text: "Купель ледяная, парная большая. Минус — очередь в кассу по выходным.", sample: true },
