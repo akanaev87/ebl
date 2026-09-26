@@ -112,9 +112,14 @@
   </section>
 
   <!-- ТЕПЛОВАЯ КАРТА -->
-  <section class="view view-heat" id="view-heat" hidden>
+  <section class="view view-heat" id="view-heat" data-style="light" hidden>
     <div id="heatmap"></div>
     <div class="heat-year" id="heatYearMark" aria-hidden="true">2026</div>
+    <div class="seg mapstyle" id="hStyle" role="group" aria-label="Подложка карты">
+      <button data-s="light" aria-pressed="true">Светлая</button>
+      <button data-s="dark" aria-pressed="false">Тёмная</button>
+      <button data-s="sat" aria-pressed="false">Спутник</button>
+    </div>
     <aside class="heat-card">
       <div class="eyebrow">Банная тепловая карта</div>
       <h2>Где жарче всего</h2>
