@@ -28,12 +28,20 @@
   const baths = [...baseBaths, ...newBaths];
   const byId = new Map(baths.map((b) => [b.id, b]));
   baths.forEach(hydrate);
-  const maxN26 = Math.max(...baths.map((b) => b.n26));
+  // все, кто хоть раз парился в 2023–2026 (ники из таблиц прошлых сезонов)
+  const allPlayers = [...new Set([...players, ...baths.flatMap((b) => Object.values(b.histBy || {}).flatMap((y) => Object.keys(y)))])];
+  const YEARS = [2023, 2024, 2025, 2026];
+  // походы в баню за год ("all" — за 2023–2026), всей лиги или одного участника
+  function countFor(b, year, player) {
+    const one = (y) => y === 2026 ? (player ? b.v26?.[player] || 0 : b.n26) : (player ? b.histBy?.[y]?.[player] || 0 : b.hist?.[y] || 0);
+    return year === "all" ? YEARS.reduce((a, y) => a + one(y), 0) : one(year);
+  }
 
   function hydrate(b) {
     b.t = b.type || "unknown";
     b.n26 = Object.values(b.v26 || {}).reduce((a, x) => a + x, 0);
     b.nHist = Object.values(b.hist || {}).reduce((a, x) => a + x, 0);
+    b.nAll = b.n26 + b.nHist;
     b.search = [b.name, b.region, b.country].join(" ").toLowerCase();
     const c = b.lat != null ? [b.lat, b.lng, "exact"] : coords?.[b.id];
     if (c) {
@@ -96,6 +104,7 @@
     $$(".nav button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === view)));
     $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + view));
     if (view === "map") setTimeout(() => map.invalidateSize(), 0);
+    if (view === "heat") initHeat(); else stopPlay();
     if (view === "feed") renderFeed();
     history.replaceState(null, "", "#" + view);
   }
@@ -109,7 +118,7 @@
   const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const tileOpts = { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' };
   L.tileLayer(TILE_URL, tileOpts).addTo(map);
-  const syncTheme = () => $$(".leaflet-tile-pane").forEach((p) => { p.classList.toggle("tiles-dark", dark()); p.classList.toggle("tiles-soft", !dark()); });
+  const syncTheme = () => $$("#map .leaflet-tile-pane, #pickmap .leaflet-tile-pane").forEach((p) => { p.classList.toggle("tiles-dark", dark()); p.classList.toggle("tiles-soft", !dark()); });
   syncTheme();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncTheme);
   new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -143,7 +152,7 @@
   $("#fCountry").innerHTML += countries.map((c) => `<option>${esc(c)}</option>`).join("");
   $("#countryList").innerHTML = countries.map((c) => `<option value="${esc(c)}">`).join("");
   $("#regionList").innerHTML = [...new Set(baths.map((b) => b.region).filter(Boolean))].map((c) => `<option value="${esc(c)}">`).join("");
-  $("#fPlayer").innerHTML += [...players].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option>${esc(p)}</option>`).join("");
+  $("#fPlayer").innerHTML += [...allPlayers].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option>${esc(p)}</option>`).join("");
   const single = (group) => group.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     $$("button", group).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
@@ -158,22 +167,25 @@
     const q = $("#q").value.trim().toLowerCase();
     const type = $("#fType [aria-pressed=true]").dataset.t, season = $("#fSeason [aria-pressed=true]").dataset.v;
     const country = $("#fCountry").value, player = $("#fPlayer").value;
+    const metric = season === "2026" ? (b) => (player ? b.v26?.[player] || 0 : b.n26) : (b) => (player ? countFor(b, "all", player) : b.nAll);
     const current = baths.filter((b) =>
       (!type || b.t === type) && (!country || b.country === country) && (!q || b.search.includes(q)) &&
-      (season === "all" || (season === "2026" ? b.n26 > 0 || b.isNew : b.n26 === 0)) && (!player || b.v26?.[player]));
-    current.sort((a, b) => (player ? (b.v26[player] || 0) - (a.v26[player] || 0) : 0) || b.n26 - a.n26 || a.name.localeCompare(b.name, "ru"));
+      (season === "all" || (season === "2026" ? b.n26 > 0 || b.isNew : b.n26 === 0)) && (!player || metric(b) > 0));
+    current.forEach((b) => (b._m = metric(b)));
+    current.sort((a, b) => b._m - a._m || a.name.localeCompare(b.name, "ru"));
+    const maxM = Math.max(1, ...current.map((b) => b._m));
     cluster.clearLayers(); markers.clear();
     const onMap = current.filter((b) => b.ll);
     cluster.addLayers(onMap.map(markerFor));
     const noPin = current.length - onMap.length;
-    $("#count").textContent = `${current.length} ${plural(current.length, "баня", "бани", "бань")}` + (noPin ? ` · ${noPin} ещё без точки на карте` : "");
+    $("#count").textContent = `${current.length} ${plural(current.length, "баня", "бани", "бань")} · ${season === "2026" ? "походы в 2026" : "походы за 2023–2026"}` + (noPin ? ` · ${noPin} без точки` : "");
     const LIMIT = 250;
     $("#list").innerHTML = current.length ? current.slice(0, LIMIT).map((b) => {
-      const n = player ? b.v26[player] : b.n26;
+      const n = b._m;
       return `<button class="item ${b.id === openId ? "active" : ""}" data-id="${b.id}">
         <i class="dot t-${b.t}"></i>
         <span><span class="it-name">${esc(b.name)}</span><span class="it-meta">${esc(where(b))}</span></span>
-        <span class="it-heat">${n ? `<b>${n}</b><i style="--w:${Math.max(8, (n / maxN26) * 100)}%"></i>` : ""}</span>
+        <span class="it-heat">${n ? `<b>${n}</b><i style="--w:${Math.max(8, (n / maxM) * 100)}%"></i>` : ""}</span>
       </button>`;
     }).join("") + (current.length > LIMIT ? `<div class="more">и ещё ${current.length - LIMIT} — уточни поиск</div>` : "")
       : `<div class="more">Ничего не нашлось. Попробуй другое слово или сбрось фильтры.</div>`;
@@ -264,7 +276,7 @@
           <h3>Кто парился в 2026</h3>
           ${who.length ? `<div class="who">${who.map(([p, n]) => `<button data-player="${esc(p)}">${ava(p, "sm")}${esc(p)}${n > 1 ? `<b>×${n}</b>` : ""}</button>`).join("")}</div>`
             : `<p class="hint" style="margin:0">В этом сезоне ещё никто. Первый заберёт +1 за уникальную.</p>`}
-          ${hist.length ? `<p class="hint" style="margin:10px 0 0">Прошлые сезоны: ${hist.map(([y, n]) => `${y} — ${n}`).join(" · ")}</p>` : ""}
+          ${hist.length ? `<p class="hint" style="margin:10px 0 0">Прошлые сезоны: ${hist.map(([y, n]) => `${y} — ${n}`).join(" · ")} · всего с 2023 — <b>${b.nAll}</b></p>` : ""}
           ${pending ? `<p class="hint" style="margin:6px 0 0">Ещё ${pending} на модерации</p>` : ""}
         </section>
         <section>
@@ -344,6 +356,76 @@
   });
   $("#podium").addEventListener("click", (e) => { const n = e.target.closest("[data-player]"); if (n) openPlayer(n.dataset.player); });
   renderTable();
+
+  // ---------- тепловая карта ----------
+  let heatMap = null, heat = null, heatYear = 2026, playTimer = null;
+  const GRAD = { 0.15: "#3b0d02", 0.35: "#b3360b", 0.55: "#f36d1c", 0.75: "#fbb33c", 0.95: "#fff4d6" };
+  $("#hPlayer").innerHTML += [...allPlayers].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option>${esc(p)}</option>`).join("");
+  function initHeat() {
+    if (heatMap) { setTimeout(() => heatMap.invalidateSize(), 0); return; }
+    heatMap = L.map("heatmap", { worldCopyJump: true, zoomSnap: 0.5 }).setView([52, 45], 3);
+    heatMap.attributionControl.setPrefix(false);
+    L.tileLayer(TILE_URL, tileOpts).addTo(heatMap);
+    $("#heatmap .leaflet-tile-pane").classList.add("tiles-heat");
+    heat = L.heatLayer([], { radius: 14, blur: 18, minOpacity: 0.35, gradient: GRAD }).addTo(heatMap);
+    heatMap.on("zoomend", tuneHeat);
+    renderHeat(true);
+  }
+  // интенсивность не должна тухнуть при отдалении — держим maxZoom слоя равным текущему зуму
+  function tuneHeat() {
+    const z = heatMap.getZoom();
+    heat.setOptions({ maxZoom: z, radius: Math.round(Math.min(36, 12 + z * 1.6)), blur: Math.round(Math.min(42, 14 + z * 1.9)) });
+  }
+  function renderHeat(fit) {
+    const player = $("#hPlayer").value;
+    const rows = baths.map((b) => [b, countFor(b, heatYear, player)]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    // точки «по центру страны» не рисуем — они дали бы ложное пятно посреди страны
+    const pts = rows.filter(([b]) => b.ll && b.prec !== "country").map(([b, n]) => [b.ll[0], b.ll[1], n]);
+    const vals = pts.map((p) => p[2]).sort((a, b) => a - b);
+    heat.setOptions({ max: Math.max(2, vals[Math.floor(vals.length * 0.8)] || 1) });
+    heat.setLatLngs(pts);
+    tuneHeat();
+    const visitsN = rows.reduce((a, [, n]) => a + n, 0), ctry = new Set(rows.map(([b]) => b.country).filter(Boolean));
+    $("#hKpis").innerHTML = [[visitsN, plural(visitsN, "поход", "похода", "походов")], [rows.length, plural(rows.length, "баня", "бани", "бань")], [ctry.size, plural(ctry.size, "страна", "страны", "стран")]]
+      .map(([n, l]) => `<div><b>${n.toLocaleString("ru-RU")}</b><span>${l}</span></div>`).join("");
+    $("#hTop").innerHTML = rows.slice(0, 7).map(([b, n], i) => `<li data-id="${b.id}"><span class="hk">${i + 1}</span><span><span class="hn">${esc(b.name)}</span><span class="hm">${esc(where(b))}</span></span><span class="hv">${n}</span></li>`).join("")
+      || `<li><span></span><span class="hm">${player ? `${esc(player)} в этом году не парился` : "Пусто"}</span></li>`;
+    $("#hNote").textContent = heatYear === 2026 ? `Сезон 2026 — по таблице на ${DATA_DATE}.` : "Походы прошлых лет привязаны к баням по названию, около 2% не нашли пару в справочнике.";
+    const mark = $("#heatYearMark");
+    mark.textContent = heatYear === "all" ? "2023–26" : heatYear;
+    mark.classList.remove("flash"); void mark.offsetWidth; mark.classList.add("flash");
+    // вся лига — стартуем с европейской части России, где основной жар; участник — по его баням
+    if (fit && !player) heatMap.setView(innerWidth > 760 ? [55.4, 32] : [48.5, 38], innerWidth > 760 ? 5 : 4);
+    else if (fit && pts.length) heatMap.fitBounds(L.latLngBounds(pts.map((p) => [p[0], p[1]])).pad(0.1), { maxZoom: 9, paddingTopLeft: innerWidth > 760 ? [360, 0] : [0, 0] });
+  }
+  function setYear(y) {
+    heatYear = y === "all" ? "all" : +y;
+    $$("#hYear button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.y === String(y))));
+    renderHeat(false);
+  }
+  $("#hYear").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { stopPlay(); setYear(b.dataset.y); } });
+  $("#hPlayer").addEventListener("change", () => renderHeat(true));
+  $("#hTop").addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-id]"); if (!li) return;
+    const b = byId.get(+li.dataset.id); if (!b?.ll) return;
+    heatMap.flyTo(b.ll, b.prec === "exact" ? 14 : 11, { duration: calm ? 0 : 0.8 });
+    const pop = L.popup({ closeButton: false, offset: [0, -4] }).setLatLng(b.ll)
+      .setContent(`<div class="heat-pop"><b>${esc(b.name)}</b><span>${esc(where(b))} · ${b.nAll} ${plural(b.nAll, "поход", "похода", "походов")} с 2023</span><br><button type="button" data-open="${b.id}">Открыть карточку →</button></div>`);
+    heatMap.once("moveend", () => pop.openOn(heatMap));
+  });
+  document.addEventListener("click", (e) => { const o = e.target.closest("[data-open]"); if (o) { show("map"); openBath(+o.dataset.open, true); } });
+  function stopPlay() {
+    if (!playTimer) return;
+    clearInterval(playTimer); playTimer = null;
+    $("#hPlay").innerHTML = `${icon("play")}<span>Годы</span>`;
+  }
+  $("#hPlay").addEventListener("click", () => {
+    if (playTimer) return stopPlay();
+    let i = 0;
+    $("#hPlay").innerHTML = `${icon("pause")}<span>Пауза</span>`;
+    const step = () => { if (i < YEARS.length) setYear(YEARS[i++]); else { stopPlay(); setYear("all"); } };
+    step(); playTimer = setInterval(step, 1700);
+  });
 
   // ---------- профиль участника ----------
   function openPlayer(name) {
@@ -637,5 +719,5 @@
   updateBadge();
   render(true);
   const h = location.hash.slice(1);
-  if (["table", "feed", "rules"].includes(h)) show(h);
+  if (["heat", "table", "feed", "rules"].includes(h)) show(h);
 })();
