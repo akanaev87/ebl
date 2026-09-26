@@ -39,6 +39,7 @@ window.EBLData = (() => {
     return {
       baths: [...baths, ...newBaths], standings, reviews: store.get("reviews", {}), visits: store.get("visits", []),
       players: standings.map((s) => s.name), me: null,
+      commission: ["Витёк", "Леха"],   // в витрине — как в scripts/seed.py
     };
   }
 
@@ -46,9 +47,9 @@ window.EBLData = (() => {
   async function whoami() {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return null;
-    const acc = check(await sb.from("player_accounts").select("id, player_id, claimed_nick, tg_username, players(nick, is_secretary)").eq("auth_user", session.user.id).maybeSingle());
+    const acc = check(await sb.from("player_accounts").select("id, player_id, claimed_nick, tg_username, players(nick, is_commission)").eq("auth_user", session.user.id).maybeSingle());
     if (!acc) return { accountId: null, nick: null };
-    return { accountId: acc.id, playerId: acc.player_id, nick: acc.players?.nick ?? null, isSecretary: !!acc.players?.is_secretary,
+    return { accountId: acc.id, playerId: acc.player_id, nick: acc.players?.nick ?? null, isCommission: !!acc.players?.is_commission,
       claimedNick: acc.claimed_nick, tgUsername: acc.tg_username };
   }
 
@@ -79,7 +80,7 @@ window.EBLData = (() => {
       all("bath_counts", "bath_id, year, nick, n"),
       all("standings", "*"),
       all("reviews", "bath_id, rating, text, created_at, players(nick)"),
-      all("players", "id, nick, is_secretary"),
+      all("players", "id, nick, is_commission"),
       whoami(),
     ]);
     const byId = new Map(baths.map((b) => [b.id, Object.assign(b, { v26: {}, hist: {}, histBy: {}, isNew: b.status === "pending" })]));
@@ -102,6 +103,7 @@ window.EBLData = (() => {
       standings: standings.map((s) => ({ name: s.nick, total: +s.total, baths: s.baths, u: s.u, uu: s.uu, long: s.long, k: s.k, pub: s.pub, reg: s.reg,
         weekPts: s.week_pts, weekBaths: s.week_baths, updatedAt: s.updated_at })),
       reviews: rv, visits, players: players.map((p) => p.nick), playerIds: Object.fromEntries(players.map((p) => [p.nick, p.id])), me,
+      commission: players.filter((p) => p.is_commission).map((p) => p.nick),
     };
   }
 
@@ -186,7 +188,7 @@ window.EBLData = (() => {
       if (!r.ok) throw new Error("Таблица не пересчиталась");
     },
 
-    // секретарь: заявки «это я» и новые бани
+    // Комиссия: заявки «это я» и новые бани
     async pendingAccounts() {
       if (!live) return [];
       return check(await sb.from("player_accounts").select("id, tg_username, tg_name, claimed_nick").is("player_id", null).not("claimed_nick", "is", null));

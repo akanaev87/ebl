@@ -36,6 +36,7 @@ insert into public.players (nick) values
   ('Серёга'),
   ('Самат')
 on conflict (nick) do nothing;
+update public.players set is_commission = true where nick in ('Витёк', 'Леха');
 
 insert into public.baths (id, name, type, country, region, lat, lng, precision) overriding system value values
   (1, 'Паппенхайм2', null, 'Австрия', 'Вена', 48.20835, 16.3725, 'region'),

@@ -1,12 +1,12 @@
 -- ЕБЛ: схема боевой версии.
--- Единица данных — поход (visits + visit_players). Всё до запуска портала — «входящий остаток» из таблицы секретаря
+-- Единица данных — поход (visits + visit_players). Всё до запуска портала — «входящий остаток» из таблицы Комиссии
 -- (legacy_visits, legacy_standings). Итоговую таблицу пишет edge-функция recompute в standings.
 
 -- ---------- участники и вход ----------
 create table public.players (
   id uuid primary key default gen_random_uuid(),
   nick text not null unique,
-  is_secretary boolean not null default false,
+  is_commission boolean not null default false,
   joined_at date,
   left_at date,
   created_at timestamptz not null default now()
@@ -20,7 +20,7 @@ create table public.player_accounts (
   tg_username text,
   tg_name text,
   auth_user uuid unique references auth.users(id) on delete set null,
-  claimed_nick text,                 -- «это я» — ждёт подтверждения секретарём
+  claimed_nick text,                 -- «это я» — ждёт подтверждения Комиссией
   created_at timestamptz not null default now()
 );
 create index on public.player_accounts (lower(tg_username));
@@ -40,7 +40,7 @@ create table public.baths (
   created_at timestamptz not null default now()
 );
 
--- ---------- входящий остаток из таблицы секретаря ----------
+-- ---------- входящий остаток из таблицы Комиссии ----------
 -- походы по баням: 2023–2025 и 2026 до запуска (ники как в таблице; бывшие участники тоже тут)
 create table public.legacy_visits (
   bath_id bigint not null references public.baths(id) on delete cascade,
@@ -131,12 +131,12 @@ language sql stable security definer set search_path = public as $$
   select player_id from player_accounts where auth_user = auth.uid() and player_id is not null limit 1
 $$;
 
-create function public.is_secretary() returns boolean
+create function public.is_commission() returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce((select is_secretary from players where id = public.me()), false)
+  select coalesce((select is_commission from players where id = public.me()), false)
 $$;
 
--- «это я»: участник без привязки выбирает свой ник, секретарь подтверждает
+-- «это я»: участник без привязки выбирает свой ник, Комиссия подтверждает
 create function public.claim_nick(p_nick text) returns void
 language plpgsql security definer set search_path = public as $$
 begin
@@ -146,7 +146,7 @@ begin
   update player_accounts set claimed_nick = p_nick where auth_user = auth.uid() and player_id is null;
 end $$;
 
--- походы по баням/годам/участникам для карты и тепловой карты — та же детализация, что в таблице секретаря,
+-- походы по баням/годам/участникам для карты и тепловой карты — та же детализация, что в таблице Комиссии,
 -- без дат и компаний. Представление работает с правами владельца: журнал походов закрыт политиками,
 -- а эти агрегаты открыты всем.
 create view public.bath_counts as
@@ -173,18 +173,18 @@ alter table public.standings enable row level security;
 alter table public.visit_points enable row level security;
 
 create policy "участники видны всем" on public.players for select using (true);
-create policy "секретарь правит участников" on public.players for all to authenticated using (public.is_secretary()) with check (public.is_secretary());
+create policy "Комиссия правит участников" on public.players for all to authenticated using (public.is_commission()) with check (public.is_commission());
 
-create policy "свой аккаунт или секретарь" on public.player_accounts for select to authenticated
-  using (auth_user = auth.uid() or public.is_secretary());
-create policy "секретарь привязывает аккаунты" on public.player_accounts for update to authenticated
-  using (public.is_secretary()) with check (public.is_secretary());
+create policy "свой аккаунт или Комиссия" on public.player_accounts for select to authenticated
+  using (auth_user = auth.uid() or public.is_commission());
+create policy "Комиссия привязывает аккаунты" on public.player_accounts for update to authenticated
+  using (public.is_commission()) with check (public.is_commission());
 
-create policy "бани видны всем" on public.baths for select using (status <> 'rejected' or public.is_secretary());
+create policy "бани видны всем" on public.baths for select using (status <> 'rejected' or public.is_commission());
 create policy "участник предлагает новую баню" on public.baths for insert to authenticated
   with check (public.me() is not null and status = 'pending' and created_by = public.me());
-create policy "секретарь правит бани" on public.baths for update to authenticated
-  using (public.is_secretary()) with check (public.is_secretary());
+create policy "Комиссия правит бани" on public.baths for update to authenticated
+  using (public.is_commission()) with check (public.is_commission());
 
 create policy "остаток виден всем" on public.legacy_visits for select using (true);
 create policy "остаток зачёта виден всем" on public.legacy_standings for select using (true);
@@ -195,23 +195,23 @@ create policy "очки походов — для участников лиги"
 create policy "лента — для участников лиги" on public.visits for select to authenticated using (public.me() is not null);
 create policy "участник отмечает поход" on public.visits for insert to authenticated
   with check (created_by = public.me() and status = 'pending' and moderated_by is null);
-create policy "секретарь модерирует" on public.visits for update to authenticated
-  using (public.is_secretary()) with check (public.is_secretary());
+create policy "Комиссия модерирует" on public.visits for update to authenticated
+  using (public.is_commission()) with check (public.is_commission());
 create policy "свой поход на модерации можно удалить" on public.visits for delete to authenticated
-  using ((created_by = public.me() and status = 'pending') or public.is_secretary());
+  using ((created_by = public.me() and status = 'pending') or public.is_commission());
 
 create policy "компания — для участников лиги" on public.visit_players for select to authenticated using (public.me() is not null);
 create policy "автор похода добавляет компанию" on public.visit_players for insert to authenticated
   with check (exists (select 1 from public.visits v where v.id = visit_id and v.created_by = public.me() and v.status = 'pending'));
 create policy "каждый сам подтверждает долгий поход" on public.visit_players for update to authenticated
-  using (player_id = public.me() or public.is_secretary()) with check (player_id = public.me() or public.is_secretary());
-create policy "автор или секретарь убирает из компании" on public.visit_players for delete to authenticated
-  using (public.is_secretary() or exists (select 1 from public.visits v where v.id = visit_id and v.created_by = public.me() and v.status = 'pending'));
+  using (player_id = public.me() or public.is_commission()) with check (player_id = public.me() or public.is_commission());
+create policy "автор или Комиссия убирает из компании" on public.visit_players for delete to authenticated
+  using (public.is_commission() or exists (select 1 from public.visits v where v.id = visit_id and v.created_by = public.me() and v.status = 'pending'));
 
 create policy "отзывы видны всем" on public.reviews for select using (true);
 create policy "свой отзыв" on public.reviews for insert to authenticated with check (player_id = public.me());
 create policy "свой отзыв правлю" on public.reviews for update to authenticated using (player_id = public.me()) with check (player_id = public.me());
-create policy "свой отзыв или секретарь удаляет" on public.reviews for delete to authenticated using (player_id = public.me() or public.is_secretary());
+create policy "свой отзыв или Комиссия удаляет" on public.reviews for delete to authenticated using (player_id = public.me() or public.is_commission());
 
 grant select on public.bath_counts to anon, authenticated;
 grant execute on function public.claim_nick(text) to authenticated;
@@ -226,7 +226,7 @@ create policy "фото видят участники лиги" on storage.objec
 create policy "фото кладут в свою папку" on storage.objects for insert to authenticated
   with check (bucket_id = 'proofs' and (storage.foldername(name))[1] = public.me()::text);
 create policy "свои фото можно удалить" on storage.objects for delete to authenticated
-  using (bucket_id = 'proofs' and ((storage.foldername(name))[1] = public.me()::text or public.is_secretary()));
+  using (bucket_id = 'proofs' and ((storage.foldername(name))[1] = public.me()::text or public.is_commission()));
 
 -- ---------- права (в проекте выключена автоматическая выдача прав на новые таблицы) ----------
 grant usage on schema public to anon, authenticated, service_role;
@@ -241,4 +241,4 @@ grant select, insert, update, delete on public.visits, public.visit_players to a
 grant insert, update, delete on public.reviews to authenticated;
 grant select on public.visit_points to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
-grant execute on function public.me(), public.is_secretary() to anon, authenticated;
+grant execute on function public.me(), public.is_commission() to anon, authenticated;

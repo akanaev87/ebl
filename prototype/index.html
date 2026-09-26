@@ -39,6 +39,7 @@
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-seal" viewBox="0 0 24 24"><path d="M12.00 0.60 L13.87 2.58 L16.36 1.47 L17.33 4.02 L20.06 3.94 L19.98 6.67 L22.53 7.64 L21.42 10.13 L23.40 12.00 L21.42 13.87 L22.53 16.36 L19.98 17.33 L20.06 20.06 L17.33 19.98 L16.36 22.53 L13.87 21.42 L12.00 23.40 L10.13 21.42 L7.64 22.53 L6.67 19.98 L3.94 20.06 L4.02 17.33 L1.47 16.36 L2.58 13.87 L0.60 12.00 L2.58 10.13 L1.47 7.64 L4.02 6.67 L3.94 3.94 L6.67 4.02 L7.64 1.47 L10.13 2.58Z" style="fill:var(--honey);stroke:var(--seal-ink);stroke-width:.5"/><circle cx="12" cy="12" r="7.4" style="fill:none;stroke:var(--seal-ink);stroke-width:.8"/><text x="12" y="15.7" text-anchor="middle" style="font:800 10.5px var(--display);fill:var(--seal-ink)">К</text></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   </defs>
 </svg>
@@ -172,8 +173,8 @@
           <h1>Лента походов</h1>
         </div>
       </div>
-      <p class="lead">Отметил баню — поход появился здесь. Очки видно сразу, в таблицу они идут после подтверждения секретарём Комиссии.</p>
-      <label class="switch"><input type="checkbox" id="secMode"><span class="track"><span class="thumb"></span></span>Я секретарь Комиссии</label>
+      <p class="lead">Отметил баню — поход появился здесь. Очки видно сразу, в таблицу они идут после того как их засчитает Комиссия.</p>
+      <label class="switch"><input type="checkbox" id="secMode"><span class="track"><span class="thumb"></span></span><svg class="seal-inline" aria-hidden="true"><use href="#i-seal"/></svg>Режим Комиссии</label>
       <div id="secPanel"></div>
       <div class="feed" id="feed"></div>
     </div>
@@ -218,7 +219,7 @@
         <p><b>Разные бани</b> — разные здания или разряды с отдельным входом и билетом. Помещения одного аквапарка, фитнеса или отеля и срубы одной частной бани — одна баня.</p>
         <p><b>Долгий поход</b> каждый подтверждает сам, даже в компании: фото с отметками времени входа и выхода. Без двух отметок поход считается часовым.</p>
         <p><b>Итог</b> — сумма очков за все недели. При равенстве выше тот, у кого больше бань. Сезон — с 1 января по 31 декабря 2026, неполные недели в начале и конце года разыгрываются как обычные.</p>
-        <p><b>Споры</b> решает Комиссия ЕБЛ, секретарь и хранитель таблицы — Виктор Кудрявцев.</p>
+        <p><b>Споры</b> решает Комиссия ЕБЛ, таблицу ведёт Виктор Кудрявцев.</p>
         <p><b>Кубок.</b> Первые 16 мест на старт Кубка проходят в Кубок. Wild-card у чемпионов прошлых лет (Филипп Лысенко, Дмитрий Радомский, Денис Мамонтов), обладателей Кубков (Ахмед Саидалиев, Дмитрий Радомский, команда Евгения Иванова и Дениса Киреева) и одно место у Комиссии.</p>
       </div>
     </div>
@@ -290,7 +291,7 @@
       <aside class="visit-side">
         <div class="ticket" id="calc"></div>
         <button type="submit" class="cta big" id="vSubmit"><svg class="ic"><use href="#i-check"/></svg><span>Отправить</span></button>
-        <p class="hint center">Секретарь проверит и засчитает</p>
+        <p class="hint center">Комиссия проверит и засчитает</p>
       </aside>
     </form>
   </div>

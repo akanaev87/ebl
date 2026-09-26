@@ -9,6 +9,7 @@ import json, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "prototype" / "data"
 CUTOVER_WEEK = 40          # первая неделя, которую считает портал (пн 28.09.2026)
+COMMISSION = ["Витёк", "Леха"]   # Комиссия ЕБЛ: Виктор Кудрявцев ведёт таблицу, Леха — портал
 
 baths = json.loads((DATA / "baths.json").read_text())
 coords = json.loads((DATA / "coords.json").read_text())
@@ -21,7 +22,8 @@ js = lambda v: q(json.dumps(v, ensure_ascii=False)) + "::jsonb"
 out = ["-- Сгенерировано scripts/seed.py — не править руками.", "begin;", ""]
 
 out.append("insert into public.players (nick) values")
-out.append(",\n".join(f"  ({q(s['name'])})" for s in standings) + "\non conflict (nick) do nothing;\n")
+out.append(",\n".join(f"  ({q(s['name'])})" for s in standings) + "\non conflict (nick) do nothing;")
+out.append(f"update public.players set is_commission = true where nick in ({', '.join(q(n) for n in COMMISSION)});\n")
 
 rows = []
 for b in baths:

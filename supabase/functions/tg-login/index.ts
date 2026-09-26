@@ -1,6 +1,6 @@
 // Вход через Telegram Login Widget.
 // 1) проверяем подпись данных от Telegram (HMAC-SHA256 с ключом sha256(bot_token));
-// 2) находим аккаунт участника по telegram id или заранее вписанному секретарём username;
+// 2) находим аккаунт участника по telegram id или заранее вписанному Комиссией username;
 // 3) заводим пользователя Supabase Auth и отдаём одноразовый token_hash — сайт меняет его на сессию через verifyOtp.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   const username = tg.username ?? null;
   const name = [tg.first_name, tg.last_name].filter(Boolean).join(" ");
 
-  // аккаунт: по telegram id, иначе по username, который секретарь вписал заранее
+  // аккаунт: по telegram id, иначе по username, который Комиссия вписала заранее
   let { data: acc } = await sb.from("player_accounts").select("*").eq("tg_id", tgId).maybeSingle();
   if (!acc && username) {
     const { data } = await sb.from("player_accounts").select("*").is("tg_id", null).ilike("tg_username", username).maybeSingle();

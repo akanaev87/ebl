@@ -1,5 +1,5 @@
 /* ЕБЛ — портал Евразийской банной лиги. Данные — через db.js: Supabase в боевом режиме,
-   выгрузка таблицы секретаря и localStorage в режиме витрины. */
+   выгрузка таблицы Комиссии и localStorage в режиме витрины. */
 (async function () {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -20,7 +20,7 @@
   }
   const me = data.me;                 // null — не вошёл или витрина; me.nick === null — вошёл, но ещё не привязан к участнику
   const member = !D.live || !!me?.nick;
-  const canModerate = !D.live || !!me?.isSecretary;
+  const canModerate = !D.live || !!me?.isCommission;
   let visits = data.visits;
   const reviews = data.reviews;
   const standings = data.standings;
@@ -59,7 +59,10 @@
   // ---------- мелкие детали интерфейса ----------
   const hue = (s) => { let h = 7; for (const ch of s) h = (h * 31 + ch.codePointAt(0)) % 360; return h; };
   const initials = (s) => s.trim().split(/\s+/).slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
-  const ava = (name, cls = "") => `<span class="ava ${cls}" style="--h:${hue(name)}" aria-hidden="true">${esc(initials(name))}</span>`;
+  const commission = new Set(data.commission || []);
+  const ava = (name, cls = "") => commission.has(name)
+    ? `<span class="ava ${cls} kom" style="--h:${hue(name)}" title="${esc(name)} — Комиссия ЕБЛ">${esc(initials(name))}<svg class="seal" aria-hidden="true"><use href="#i-seal"/></svg></span>`
+    : `<span class="ava ${cls}" style="--h:${hue(name)}" aria-hidden="true">${esc(initials(name))}</span>`;
   const icon = (id) => `<svg class="ic" aria-hidden="true"><use href="#i-${id}"/></svg>`;
   const leafSvg = (on) => `<svg class="leaf ${on ? "on" : ""}" viewBox="-6 -17 12 18" aria-hidden="true"><use href="#oak-leaf"/></svg>`;
   const leaves = (n, cls = "") => `<span class="leaves ${cls}" title="${fmt(n)} из 5">${[1, 2, 3, 4, 5].map((i) => leafSvg(i <= Math.round(n))).join("")}</span>`;
@@ -492,7 +495,7 @@
     const best = Math.max(...weeks.map((w) => s.weekBaths[w] ?? 0));
     $("#playerBody").innerHTML = `
       <div class="p-head">${ava(name, "xl")}<div>
-        <div class="eyebrow">${s.place} место в сезоне</div>
+        <div class="eyebrow">${commission.has(name) ? "Комиссия ЕБЛ · " : ""}${s.place} место в сезоне</div>
         <h2>${esc(name)}</h2>
         <div class="sub"><b>${fmt(s.total)}</b> ${plural(s.total, "очко", "очка", "очков")} · ${s.baths} ${plural(s.baths, "баня", "бани", "бань")} · рекорд — ${best} за неделю</div>
       </div></div>
@@ -725,7 +728,7 @@
   $(".switch").hidden = !canModerate;
   function renderFeed() {
     if (!member) {
-      $("#feed").innerHTML = `<div class="empty">${markSvg()}<b>Лента — для участников лиги</b><p>${me ? "Выбери свой ник из таблицы — секретарь подтвердит, и лента откроется." : "Войди через Telegram тем же аккаунтом, что в группе."}</p><button class="cta" id="emptyLogin">${icon("check")}<span>${me ? "Кто ты в таблице?" : "Войти через Telegram"}</span></button></div>`;
+      $("#feed").innerHTML = `<div class="empty">${markSvg()}<b>Лента — для участников лиги</b><p>${me ? "Выбери свой ник из таблицы — Комиссия подтвердит, и лента откроется." : "Войди через Telegram тем же аккаунтом, что в группе."}</p><button class="cta" id="emptyLogin">${icon("check")}<span>${me ? "Кто ты в таблице?" : "Войти через Telegram"}</span></button></div>`;
       $("#emptyLogin").onclick = () => (me ? openClaim() : openLogin());
       return;
     }
@@ -754,7 +757,7 @@
           ${sec && v.status === "pending" ? `<span class="post-actions"><button class="btn sm solid" data-ok="${v.id}">${icon("check")}Засчитать</button><button class="btn sm danger" data-no="${v.id}">Отклонить</button></span>` : ""}
         </div>
       </article>`;
-    }).join("") : `<div class="empty">${markSvg()}<b>Тут пока тихо</b><p>Отметь первую баню — поход появится здесь, а секретарь засчитает его в таблицу.</p><button class="cta" id="emptyCta">${icon("plus")}<span>Отметить баню</span></button></div>`;
+    }).join("") : `<div class="empty">${markSvg()}<b>Тут пока тихо</b><p>Отметь первую баню — поход появится здесь, а Комиссия засчитает его в таблицу.</p><button class="cta" id="emptyCta">${icon("plus")}<span>Отметить баню</span></button></div>`;
     $("#emptyCta")?.addEventListener("click", () => openVisit());
   }
   $("#secMode").addEventListener("change", renderFeed);
@@ -774,17 +777,17 @@
     try {
       await D.confirmProof(+inp.dataset.proof, [...inp.files]);
       const v = visits.find((x) => x.id === +inp.dataset.proof); (v.proofs ||= {})[me.nick] = true;
-      renderFeed(); toast("Фото приложены — секретарь увидит");
+      renderFeed(); toast("Фото приложены — Комиссия увидит");
     } catch (err) { toast("Фото не загрузились: " + err.message); }
   });
 
-  // секретарь: заявки «это я» и новые бани
+  // Комиссия: заявки «это я» и новые бани
   async function renderSecPanel() {
     const box = $("#secPanel");
     const accounts = await D.pendingAccounts().catch(() => []);
     const newOnes = baths.filter((b) => b.isNew);
     if (!accounts.length && !newOnes.length) { box.innerHTML = ""; return; }
-    box.innerHTML = `<div class="post sec">
+    box.innerHTML = `<div class="post sec"><div class="kom-title"><svg aria-hidden="true"><use href="#i-seal"/></svg>Стол Комиссии</div>
       ${accounts.length ? `<h3>Заявки «это я» · ${accounts.length}</h3>${accounts.map((a) => `<div class="sec-row"><span><b>${esc(a.tg_name || "")}</b> ${a.tg_username ? "@" + esc(a.tg_username) : ""} — говорит, что это <b>${esc(a.claimed_nick)}</b></span>
         <button class="btn sm solid" data-link="${a.id}" data-nick="${esc(a.claimed_nick)}">Подтвердить</button></div>`).join("")}` : ""}
       ${newOnes.length ? `<h3>Новые бани · ${newOnes.length}</h3>${newOnes.map((b) => `<div class="sec-row"><span><b>${esc(b.name)}</b> · ${esc(where(b))}</span>
@@ -836,13 +839,13 @@
   function openClaim() {
     const waiting = me?.claimedNick;
     $("#loginBody").innerHTML = `<div class="eyebrow">Почти готово</div><h2>Кто ты в таблице?</h2>
-      ${waiting ? `<p class="lead">Заявка ушла: ты — <b>${esc(waiting)}</b>. Как только секретарь подтвердит, откроются лента и отметки походов.</p>` :
-      `<p class="lead">Выбери свой ник — секретарь Комиссии подтвердит, что это ты.</p>`}
+      ${waiting ? `<p class="lead">Заявка ушла: ты — <b>${esc(waiting)}</b>. Как только Комиссия подтвердит, откроются лента и отметки походов.</p>` :
+      `<p class="lead">Выбери свой ник — Комиссия подтвердит, что это ты.</p>`}
       <div class="grid2"><select id="claimNick" class="sel">${[...players].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option ${p === waiting ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>
       <button class="cta" id="claimBtn"><span>${waiting ? "Поменять заявку" : "Это я"}</span></button></div>
       <p class="hint" style="margin-top:14px"><button class="linkbtn" id="logoutBtn">Выйти</button></p>`;
     $("#claimBtn").onclick = async () => {
-      try { await D.claim($("#claimNick").value); toast("Заявка ушла секретарю"); me.claimedNick = $("#claimNick").value; openClaim(); }
+      try { await D.claim($("#claimNick").value); toast("Заявка ушла в Комиссию"); me.claimedNick = $("#claimNick").value; openClaim(); }
       catch (err) { toast(err.message); }
     };
     $("#logoutBtn").onclick = async () => { await D.logout(); location.reload(); };
@@ -853,12 +856,12 @@
     if (!D.live) { btn.hidden = true; return; }
     btn.hidden = false;
     if (!me) btn.innerHTML = `${icon("check")}<span>Войти</span>`;
-    else if (!me.nick) btn.innerHTML = `${ava(me.claimedNick || "?")}<span>${me.claimedNick ? "Ждём секретаря" : "Кто ты?"}</span>`;
+    else if (!me.nick) btn.innerHTML = `${ava(me.claimedNick || "?")}<span>${me.claimedNick ? "Ждём Комиссию" : "Кто ты?"}</span>`;
     else btn.innerHTML = `${ava(me.nick)}<span>${esc(me.nick)}</span>`;
     btn.onclick = () => {
       if (!me) return openLogin();
       if (!me.nick) return openClaim();
-      $("#loginBody").innerHTML = `<div class="p-mini">${ava(me.nick, "lg")}<div><div class="eyebrow">${me.isSecretary ? "Секретарь Комиссии" : "Участник лиги"}</div><h2>${esc(me.nick)}</h2></div></div>
+      $("#loginBody").innerHTML = `<div class="p-mini">${ava(me.nick, "lg")}<div><div class="eyebrow">${me.isCommission ? "Комиссия ЕБЛ" : "Участник лиги"}</div><h2>${esc(me.nick)}</h2></div></div>
         <div class="grid2"><button class="btn" id="myProfile">${icon("trophy")}Мой сезон</button><button class="btn danger" id="logoutBtn">Выйти</button></div>`;
       $("#myProfile").onclick = () => { $("#loginModal").hidden = true; openPlayer(me.nick); };
       $("#logoutBtn").onclick = async () => { await D.logout(); location.reload(); };
