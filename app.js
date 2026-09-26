@@ -359,18 +359,45 @@
 
   // ---------- тепловая карта ----------
   let heatMap = null, heat = null, heatYear = 2026, playTimer = null;
-  const GRAD = { 0.15: "#3b0d02", 0.35: "#b3360b", 0.55: "#f36d1c", 0.75: "#fbb33c", 0.95: "#fff4d6" };
+  // на светлой карте самое жаркое — насыщенно-красное (белое ядро там не видно), на тёмной и спутнике — «огонь» до белого
+  const GRAD = {
+    light: { 0.1: "#fde0c5", 0.3: "#f9a66c", 0.5: "#f26b2a", 0.7: "#d7301f", 0.9: "#99000d" },
+    fire: { 0.15: "#3b0d02", 0.35: "#b3360b", 0.55: "#f36d1c", 0.75: "#fbb33c", 0.95: "#fff4d6" },
+  };
+  const SAT_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  const SAT_LABELS = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+  const heatLayers = {};
+  let heatStyle = store.get("heatStyle", "light");
   $("#hPlayer").innerHTML += [...allPlayers].sort((a, b) => a.localeCompare(b, "ru")).map((p) => `<option>${esc(p)}</option>`).join("");
   function initHeat() {
     if (heatMap) { setTimeout(() => heatMap.invalidateSize(), 0); return; }
     heatMap = L.map("heatmap", { worldCopyJump: true, zoomSnap: 0.5 }).setView([52, 45], 3);
     heatMap.attributionControl.setPrefix(false);
-    L.tileLayer(TILE_URL, tileOpts).addTo(heatMap);
-    $("#heatmap .leaflet-tile-pane").classList.add("tiles-heat");
-    heat = L.heatLayer([], { radius: 14, blur: 18, minOpacity: 0.35, gradient: GRAD }).addTo(heatMap);
+    heatLayers.osm = L.tileLayer(TILE_URL, tileOpts);
+    heatLayers.sat = L.layerGroup([
+      L.tileLayer(SAT_URL, { maxZoom: 18, attribution: "Снимки &copy; Esri, Maxar, Earthstar Geographics" }),
+      L.tileLayer(SAT_LABELS, { maxZoom: 18, pane: "overlayPane" }),
+    ]);
+    heat = L.heatLayer([], { radius: 14, blur: 18, minOpacity: 0.35, gradient: GRAD.light }).addTo(heatMap);
     heatMap.on("zoomend", tuneHeat);
+    setHeatStyle(heatStyle);
     renderHeat(true);
   }
+  function setHeatStyle(st) {
+    heatStyle = st; store.set("heatStyle", st);
+    $("#view-heat").dataset.style = st;
+    $$("#hStyle button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === st)));
+    if (!heatMap) return;
+    const base = st === "sat" ? heatLayers.sat : heatLayers.osm, other = st === "sat" ? heatLayers.osm : heatLayers.sat;
+    if (heatMap.hasLayer(other)) heatMap.removeLayer(other);
+    if (!heatMap.hasLayer(base)) heatMap.addLayer(base);
+    const pane = $("#heatmap .leaflet-tile-pane");
+    pane.classList.remove("tiles-heat-light", "tiles-heat-dark", "tiles-heat-sat");
+    pane.classList.add("tiles-heat-" + st);
+    heat.setOptions({ gradient: st === "light" ? GRAD.light : GRAD.fire, minOpacity: st === "light" ? 0.5 : 0.35 });
+  }
+  $("#hStyle").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setHeatStyle(b.dataset.s); });
+  setHeatStyle(heatStyle);
   // интенсивность не должна тухнуть при отдалении — держим maxZoom слоя равным текущему зуму
   function tuneHeat() {
     const z = heatMap.getZoom();
