@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ЕБЛ · Евразийская банная лига</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Unbounded:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#map"><b>ЕБЛ</b><span>Евразийская банная лига</span></a>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="map" aria-selected="true">Карта бань</button>
+    <button role="tab" data-view="table">Таблица</button>
+    <button role="tab" data-view="feed">Лента <span class="badge" id="pendingBadge" hidden>0</span></button>
+    <button role="tab" data-view="rules">Регламент</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="season">Четвёртый чемпионат · 2026<br>идёт неделя <b id="curWeek">W39</b></div>
+  <button class="btn primary" id="addVisitBtn">+ Поход в баню</button>
+</header>
+
+<main>
+  <!-- КАРТА -->
+  <section class="view" id="view-map">
+    <div class="mapwrap">
+      <aside class="side">
+        <div class="filters">
+          <input class="search" id="q" type="search" placeholder="Баня, город, регион…" autocomplete="off">
+          <div class="chips" id="typeChips">
+            <button class="chip" data-type="public" aria-pressed="true"><i class="dot public"></i>Общественные</button>
+            <button class="chip" data-type="spa" aria-pressed="true"><i class="dot spa"></i>Спа / фитнес</button>
+            <button class="chip" data-type="private" aria-pressed="true"><i class="dot private"></i>Частные</button>
+            <button class="chip" data-type="unknown" aria-pressed="true"><i class="dot unknown"></i>Без типа</button>
+          </div>
+          <div class="row2">
+            <select id="fCountry" aria-label="Страна"><option value="">Все страны</option></select>
+            <select id="fSeason" aria-label="Сезон">
+              <option value="2026">Были в 2026</option>
+              <option value="all">Весь справочник</option>
+              <option value="never">Ещё никто не был в 2026</option>
+            </select>
+          </div>
+          <select id="fPlayer" aria-label="Участник" style="padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--ground)"><option value="">Все участники</option></select>
+          <div class="count" id="count"></div>
+        </div>
+        <div class="list" id="list"></div>
+      </aside>
+      <div class="mapcol">
+        <div id="map"></div>
+        <div class="maplegend">
+          <div><i class="dot public"></i>общественная (+1 очко)</div>
+          <div><i class="dot spa"></i>спа, фитнес, аквапарк</div>
+          <div><i class="dot private"></i>частная</div>
+          <div><i class="dot unknown" style="opacity:.55;outline:1px dashed var(--ink-3)"></i>точка примерная</div>
+        </div>
+        <article class="drawer" id="drawer" hidden></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ТАБЛИЦА -->
+  <section class="view page" id="view-table" hidden>
+    <div>
+      <h1>Турнирная таблица 2026</h1>
+      <p class="lead" id="tableLead"></p>
+      <div class="podium" id="podium"></div>
+      <div class="tablewrap"><table id="standings"></table></div>
+      <div class="cupnote"><i></i>первые 16 проходят в Кубок ЕБЛ (плюс wild-card: чемпионы и обладатели Кубков прошлых лет, одно место у Комиссии)</div>
+      <div class="legend-cols">
+        <span><b>К-во</b> бань за сезон</span><span><b>У</b> уникальные</span><span><b>УУ</b> ультрауникальные</span>
+        <span><b>Дл</b> долгие, 150+ мин</span><span><b>К</b> компанейские очки</span><span><b>Общ</b> общественные</span><span><b>Рег</b> регионы и страны</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ЛЕНТА -->
+  <section class="view page" id="view-feed" hidden>
+    <div>
+      <h1>Лента походов</h1>
+      <p class="lead">Сюда падают походы, которые участники заносят сами. Очки считаются сразу, в зачёт идут после подтверждения секретарём Комиссии. В прототипе всё хранится только в твоём браузере.</p>
+      <div class="modbar">
+        <label class="check" style="margin:0"><input type="checkbox" id="secMode"> Я секретарь Комиссии — показать кнопки модерации</label>
+      </div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </section>
+
+  <!-- РЕГЛАМЕНТ -->
+  <section class="view page" id="view-rules" hidden>
+    <div class="rules">
+      <h1>Положение о четвёртом чемпионате ЕБЛ</h1>
+      <p class="lead">Коротко, как считаются очки. Полный текст — в таблице у секретаря Комиссии.</p>
+      <h3>Очки за место по итогам недели</h3>
+      <div class="ptsgrid">
+        <div><b>15</b><span>1 место</span></div><div><b>12</b><span>2</span></div><div><b>10</b><span>3</span></div><div><b>8</b><span>4</span></div>
+        <div><b>6</b><span>5</span></div><div><b>4</b><span>6</span></div><div><b>2</b><span>7</span></div><div><b>1</b><span>8</span></div>
+      </div>
+      <p class="note">Место — по числу бань за неделю. Поделили места — делят очки поровну, с округлением до десятых: четверо на 7–10 местах получат по (2+1+0+0)/4 = 0,8. Неделя, в которую никто не был в бане, не разыгрывается.</p>
+      <ol>
+        <li><b>Что считается баней.</b> Помещение для термопроцедур, нагретое выше 50 °C, где ты раздет. Подходят городские бани, ночные сауны, фитнесы и аквапарки с саунами, домашние и разборные бани.</li>
+        <li><b>Когда поход засчитывается.</b> Не меньше часа, первый поход в эту баню за сутки, пост в телеграм-группе в тот же день (может запостить любой участник).</li>
+        <li><b>Неделя.</b> Заканчивается в воскресенье в 22:59 МСК. Написал позже — поход уходит в следующую неделю.</li>
+        <li><b>+1</b> за каждый поход в баню, даже если за неделю вышло 0 очков за место.</li>
+        <li><b>+1</b> за общественную баню: с мужскими часами, мужским днём или мужским разрядом. Если непонятно — решает Комиссия.</li>
+        <li><b>Компания</b> (все в бане в одни сутки по МСК): 3–5 участников — К, +1 каждому; 6–8 — КК, +2; 9 и больше — ККК, +3.</li>
+        <li><b>+1 за уникальную баню</b> — первую в этом году для тебя. Разные здания или разные разряды с отдельным входом и билетом — разные бани. Помещения одного аквапарка, фитнеса или отеля и разные срубы одной частной бани — одна баня.</li>
+        <li><b>+1 за ультрауникальную</b> — ни один участник не был в ней в 2023–2026. Очко получают все, кто пришёл в неё первым в тот день.</li>
+        <li><b>Регионы и страны.</b> +1 за новый для тебя в 2026 регион (субъект РФ, область, земля, штат, префектура и т.п.), ещё +1 за новую страну.</li>
+        <li><b>+1 за долгий поход</b>, больше 150 минут. Нужны фото с отметками времени входа и выхода. Без двух отметок поход считается часовым. В компании каждый подтверждает время сам.</li>
+        <li><b>Итог.</b> Очки за все недели складываются. При равенстве выше тот, у кого больше бань за год.</li>
+        <li><b>Сроки.</b> 1 января — 31 декабря 2026. Неполные недели 1–4 января и 28–31 декабря разыгрываются как обычные.</li>
+        <li><b>Споры</b> решает Комиссия ЕБЛ. Секретарь Комиссии и хранитель таблицы — Виктор Кудрявцев.</li>
+        <li><b>Кубок.</b> Первые 16 мест на дату старта Кубка проходят в Кубок. Wild-card у чемпионов прошлых лет (Филипп Лысенко, Дмитрий Радомский, Денис Мамонтов), у обладателей Кубков (Ахмед Саидалиев, Дмитрий Радомский, команда Евгения Иванова и Дениса Киреева) и одно место у Комиссии.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<!-- модалка: поход -->
+<div class="modal" id="visitModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="visitTitle">
+    <button class="close" data-close aria-label="Закрыть">✕</button>
+    <header><h2 id="visitTitle">Поход в баню</h2><div class="sub">Очки считаются сразу. В зачёт — после подтверждения секретарём.</div></header>
+    <form class="content" id="visitForm">
+      <div class="form">
+        <div class="field">
+          <label for="vPlayer">Кто</label>
+          <select id="vPlayer" required></select>
+        </div>
+        <div class="field">
+          <label for="vDate">Когда зашёл</label>
+          <input id="vDate" type="datetime-local" required>
+          <span class="hint" id="vWeekHint"></span>
+        </div>
+        <div class="field full">
+          <label for="vBathQ">Баня</label>
+          <div id="vBathPicked" hidden></div>
+          <input id="vBathQ" class="search" type="search" placeholder="Начни вводить: Сандуны, Екатеринбург, onsen…" autocomplete="off">
+          <div class="suggest" id="vSuggest" hidden></div>
+        </div>
+        <div class="field full" id="newBathBox" hidden>
+          <div class="form">
+            <div class="field"><label for="nbName">Название новой бани</label><input id="nbName" placeholder="Город, название"></div>
+            <div class="field"><label for="nbType">Тип</label>
+              <select id="nbType"><option value="public">Общественная (мужские часы / разряд)</option><option value="spa">Спа / фитнес / аквапарк</option><option value="private">Частная</option></select></div>
+            <div class="field"><label for="nbCountry">Страна</label><input id="nbCountry" list="countryList" placeholder="Россия"></div>
+            <div class="field"><label for="nbRegion">Регион</label><input id="nbRegion" list="regionList" placeholder="Субъект, область, земля…"></div>
+            <div class="field full"><span class="lab">Где на карте — кликни, чтобы поставить точку</span><div id="pickmap"></div></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="vDur">Сколько был, минут</label>
+          <input id="vDur" type="number" min="60" step="5" value="120" required>
+          <span class="hint">Меньше 60 минут — поход не засчитывается</span>
+        </div>
+        <div class="field">
+          <span class="lab">Долгий поход</span>
+          <label class="check"><input type="checkbox" id="vProof"> Есть фото с отметками времени входа и выхода</label>
+          <input type="file" id="vPhotos" accept="image/*" multiple>
+        </div>
+        <div class="field full">
+          <span class="lab">С кем был (участники ЕБЛ)</span>
+          <div class="companions chips" id="vComp"></div>
+        </div>
+      </div>
+      <div class="calc" id="calc"></div>
+      <div class="actions">
+        <button type="button" class="btn" data-close>Отмена</button>
+        <button type="submit" class="btn primary">Отправить на модерацию</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- модалка: участник -->
+<div class="modal" id="playerModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <button class="close" data-close aria-label="Закрыть">✕</button>
+    <div id="playerBody"></div>
+  </div>
+</div>
+
+<datalist id="countryList"></datalist>
+<datalist id="regionList"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
