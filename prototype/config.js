@@ -1,7 +1,7 @@
 /* Боевой режим: адрес проекта Supabase и публичный (publishable) ключ — его можно держать в открытом коде,
    доступ к данным ограничен политиками в базе. Пустые значения — режим витрины. */
 window.EBL_CONFIG = {
-  supabaseUrl: "",
-  supabaseKey: "",
-  telegramBot: "",
+  supabaseUrl: "https://yeerkfdgmhcmvdqzaoio.supabase.co",
+  supabaseKey: "sb_publishable_o9O2S8NXOlWQ2Wkyk7aIUw_p-AVyq29",
+  telegramBot: "",   // username бота без @ — пока пусто, кнопка входа скрыта
 };

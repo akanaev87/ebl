@@ -824,6 +824,7 @@
   // ---------- вход через Telegram ----------
   function openLogin() {
     if (!D.live) return;
+    if (!window.EBL_CONFIG.telegramBot) return toast("Вход через Telegram откроется совсем скоро");
     $("#loginBody").innerHTML = `<div class="eyebrow">Для участников лиги</div><h2>Вход в ЕБЛ</h2>
       <p class="lead">Входи через Telegram тем же аккаунтом, что в группе. Мы видим только имя и username — телефон остаётся у Telegram.</p>
       <div id="tgWidget" class="tg-widget"></div><p class="hint" id="loginErr"></p>`;
@@ -853,7 +854,7 @@
   }
   function renderMe() {
     const btn = $("#meBtn");
-    if (!D.live) { btn.hidden = true; return; }
+    if (!D.live || (!me && !window.EBL_CONFIG.telegramBot)) { btn.hidden = true; return; }
     btn.hidden = false;
     if (!me) btn.innerHTML = `${icon("check")}<span>Войти</span>`;
     else if (!me.nick) btn.innerHTML = `${ava(me.claimedNick || "?")}<span>${me.claimedNick ? "Ждём Комиссию" : "Кто ты?"}</span>`;
