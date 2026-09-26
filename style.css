@@ -56,9 +56,23 @@ button { cursor: pointer; }
   display: flex; align-items: center; gap: 20px; padding: 10px 20px;
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: baseline; gap: 10px; text-decoration: none; color: inherit; }
-.brand b { font: 800 22px/1 var(--display); letter-spacing: .02em; }
-.brand span { font-size: 12px; color: var(--ink-3); line-height: 1.2; max-width: 11em; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; flex: none; }
+.mark { width: 40px; height: 40px; flex: none; overflow: visible; }
+.mark-bg { fill: var(--accent); }
+.mark .hat { fill: var(--surface); }
+.mark .band { fill: var(--heat); }
+.mark .steam { stroke: var(--surface); }
+.brand .word { font: 800 25px/1 var(--display); letter-spacing: .05em; }
+.brand .claim {
+  font: 600 10px/1.3 var(--body); text-transform: uppercase; letter-spacing: .14em; color: var(--ink-3);
+  padding-left: 10px; border-left: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mark .steam path { transition: transform .5s ease, opacity .5s ease; }
+  .brand:hover .steam path { transform: translateY(-1.5px); opacity: .75; }
+  .brand:hover .steam path:nth-child(2) { transition-delay: .08s; }
+  .brand:hover .steam path:nth-child(3) { transition-delay: .16s; }
+}
 .tabs { display: flex; gap: 2px; margin-left: 8px; }
 .tabs button {
   white-space: nowrap; border: 0; background: none; padding: 8px 12px; border-radius: 8px; color: var(--ink-2); font-weight: 500;
@@ -86,7 +100,7 @@ main { height: calc(100% - 61px); }
 /* ---------- карта ---------- */
 .mapwrap { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
 .side { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--surface); min-height: 0; }
-.filters { padding: 14px 16px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
+.filters { padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; border-bottom: 1px solid var(--line); }
 .search { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
@@ -97,7 +111,8 @@ main { height: calc(100% - 61px); }
 .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
 .dot.public { background: var(--public); } .dot.spa { background: var(--spa); } .dot.private { background: var(--private); } .dot.unknown { background: var(--unknown); }
 .row2 { display: flex; gap: 8px; }
-.row2 select { flex: 1; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); min-width: 0; }
+.row2 select { flex: 1 1 0; width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); min-width: 0; }
+.sel { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); }
 .count { font-size: 12px; color: var(--ink-3); }
 .list { overflow: auto; flex: 1; }
 .item { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -108,6 +123,7 @@ main { height: calc(100% - 61px); }
 #map { height: 100%; background: var(--surface-2); }
 .tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6); }
 .leaflet-container { font-family: var(--body); }
+.leaflet-container:focus-visible { outline-offset: -2px; }
 .pin { border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .pin.approx { opacity: .55; border-style: dashed; }
 .pin.hot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--heat) 45%, transparent), 0 1px 4px rgba(0,0,0,.35); }
@@ -256,10 +272,12 @@ tbody tr:hover { background: var(--surface-2); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 10px; z-index: 3000; font-weight: 500; box-shadow: var(--shadow); }
 
 /* ---------- мобилка ---------- */
-@media (max-width: 1100px) { .brand span { display: none; } .season { display: none; } }
+@media (max-width: 1100px) { .brand .claim { display: none; } .season { display: none; } }
 @media (max-width: 860px) {
   .top { flex-wrap: wrap; gap: 8px 12px; padding: 8px 16px; }
-  .brand span, .season { display: none; }
+  .season { display: none; }
+  .mark { width: 34px; height: 34px; }
+  .brand .word { font-size: 22px; }
   .tabs { order: 3; width: 100%; margin: 0; overflow-x: auto; }
   main { height: calc(100% - 96px); }
   .mapwrap { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
