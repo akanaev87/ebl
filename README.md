@@ -11,6 +11,8 @@
 
 Походы, отзывы и новые бани в прототипе хранятся только в браузере (localStorage).
 
+Опубликован на GitHub Pages: https://akanaev87.github.io/ebl/ (закрыт от поисковиков через `noindex`). Выложить изменения: `scripts/deploy.sh`.
+
 Запуск:
 
 ```bash
