@@ -361,8 +361,8 @@
   let heatMap = null, heat = null, heatYear = 2026, playTimer = null;
   // на светлой карте самое жаркое — насыщенно-красное (белое ядро там не видно), на тёмной и спутнике — «огонь» до белого
   const GRAD = {
-    light: { 0.1: "#fde0c5", 0.3: "#f9a66c", 0.5: "#f26b2a", 0.7: "#d7301f", 0.9: "#99000d" },
-    fire: { 0.15: "#3b0d02", 0.35: "#b3360b", 0.55: "#f36d1c", 0.75: "#fbb33c", 0.95: "#fff4d6" },
+    light: { 0.12: "#fdd49e", 0.3: "#fdae6b", 0.5: "#f16913", 0.7: "#d7301f", 0.88: "#a50f15", 1: "#5c0010" },
+    fire: { 0.12: "#4a1203", 0.3: "#9c2a06", 0.5: "#e4561a", 0.7: "#f7962c", 0.88: "#fdd36a", 1: "#ffffff" },
   };
   const SAT_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
   const SAT_LABELS = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
@@ -378,7 +378,7 @@
       L.tileLayer(SAT_URL, { maxZoom: 18, attribution: "Снимки &copy; Esri, Maxar, Earthstar Geographics" }),
       L.tileLayer(SAT_LABELS, { maxZoom: 18, pane: "overlayPane" }),
     ]);
-    heat = L.heatLayer([], { radius: 14, blur: 18, minOpacity: 0.35, gradient: GRAD.light }).addTo(heatMap);
+    heat = L.heatLayer([], { radius: 14, blur: 18, max: 1, minOpacity: 0.2, gradient: GRAD.light }).addTo(heatMap);
     heatMap.on("zoomend", tuneHeat);
     setHeatStyle(heatStyle);
     renderHeat(true);
@@ -394,23 +394,40 @@
     const pane = $("#heatmap .leaflet-tile-pane");
     pane.classList.remove("tiles-heat-light", "tiles-heat-dark", "tiles-heat-sat");
     pane.classList.add("tiles-heat-" + st);
-    heat.setOptions({ gradient: st === "light" ? GRAD.light : GRAD.fire, minOpacity: st === "light" ? 0.5 : 0.35 });
+    heat.setOptions({ gradient: st === "light" ? GRAD.light : GRAD.fire, minOpacity: st === "light" ? 0.3 : 0.2 });
   }
   $("#hStyle").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setHeatStyle(b.dataset.s); });
   setHeatStyle(heatStyle);
   // интенсивность не должна тухнуть при отдалении — держим maxZoom слоя равным текущему зуму
   function tuneHeat() {
     const z = heatMap.getZoom();
-    heat.setOptions({ maxZoom: z, radius: Math.round(Math.min(36, 12 + z * 1.6)), blur: Math.round(Math.min(42, 14 + z * 1.9)) });
+    heat.setOptions({ maxZoom: z, radius: Math.round(Math.min(34, 10 + z * 1.5)), blur: Math.round(Math.min(36, 12 + z * 1.6)) });
+    aggregateHeat();
+  }
+  // как в Strava: походы складываются по ячейкам экрана при текущем зуме, яркость — по логарифмической шкале
+  // от самой жаркой ячейки: места силы горят заметно ярче, но Москва не гасит остальные города,
+  // а баня с парой походов остаётся бледным, но видимым пятном
+  let heatPts = [];
+  function aggregateHeat() {
+    if (!heatPts.length) { heat.setLatLngs([]); return; }
+    const z = heatMap.getZoom(), cell = (heat.options.radius + heat.options.blur) / 2, grid = new Map();
+    for (const [lat, lng, n] of heatPts) {
+      const p = heatMap.project([lat, lng], z), key = Math.floor(p.x / cell) + ":" + Math.floor(p.y / cell);
+      const g = grid.get(key);
+      if (g) { g.x += p.x * n; g.y += p.y * n; g.n += n; } else grid.set(key, { x: p.x * n, y: p.y * n, n });
+    }
+    const cells = [...grid.values()], maxN = Math.max(...cells.map((c) => c.n));
+    heat.setLatLngs(cells.map((c) => {
+      const ll = heatMap.unproject([c.x / c.n, c.y / c.n], z);
+      return [ll.lat, ll.lng, Math.pow(Math.log1p(c.n) / Math.log1p(maxN), 0.8)];
+    }));
   }
   function renderHeat(fit) {
     const player = $("#hPlayer").value;
     const rows = baths.map((b) => [b, countFor(b, heatYear, player)]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
     // точки «по центру страны» не рисуем — они дали бы ложное пятно посреди страны
     const pts = rows.filter(([b]) => b.ll && b.prec !== "country").map(([b, n]) => [b.ll[0], b.ll[1], n]);
-    const vals = pts.map((p) => p[2]).sort((a, b) => a - b);
-    heat.setOptions({ max: Math.max(2, vals[Math.floor(vals.length * 0.8)] || 1) });
-    heat.setLatLngs(pts);
+    heatPts = pts;
     tuneHeat();
     const visitsN = rows.reduce((a, [, n]) => a + n, 0), ctry = new Set(rows.map(([b]) => b.country).filter(Boolean));
     $("#hKpis").innerHTML = [[visitsN, plural(visitsN, "поход", "похода", "походов")], [rows.length, plural(rows.length, "баня", "бани", "бань")], [ctry.size, plural(ctry.size, "страна", "страны", "стран")]]

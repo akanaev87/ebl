@@ -302,8 +302,8 @@ h3 { font: 600 12px/1 var(--body); text-transform: uppercase; letter-spacing: .0
 .rvform .sel { width: auto; height: 36px; font-size: 13px; }
 
 /* ---------- тепловая карта ---------- */
-.view-heat { position: relative; --heat-bg: var(--bg); --heat-grad: linear-gradient(90deg, #fde0c5, #f9a66c, #f26b2a, #d7301f, #99000d); --year-stroke: color-mix(in srgb, var(--ember) 45%, transparent); background: var(--heat-bg); }
-.view-heat[data-style="dark"], .view-heat[data-style="sat"] { --heat-bg: #07090a; --heat-grad: linear-gradient(90deg, #3b0d02, #b3360b, #f36d1c, #fbb33c, #fff4d6); --year-stroke: rgba(255, 170, 90, .4); }
+.view-heat { position: relative; --heat-bg: var(--bg); --heat-grad: linear-gradient(90deg, #fdd49e, #fdae6b, #f16913, #d7301f, #a50f15, #5c0010); --year-stroke: color-mix(in srgb, var(--ember) 45%, transparent); background: var(--heat-bg); }
+.view-heat[data-style="dark"], .view-heat[data-style="sat"] { --heat-bg: #07090a; --heat-grad: linear-gradient(90deg, #4a1203, #9c2a06, #e4561a, #f7962c, #fdd36a, #ffffff); --year-stroke: rgba(255, 170, 90, .4); }
 #heatmap { position: absolute; inset: 0; background: var(--heat-bg); }
 /* светлая: серая подложка, чтобы красные пятна читались; тёмная — «ночная» инверсия */
 .tiles-heat-light { filter: grayscale(1) brightness(1.03) contrast(.86); }
