@@ -37,6 +37,8 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
     <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21c4 0 7-2.7 7-6.8 0-3.7-2.6-6-4.3-8.7-.4 2.2-1.6 3.6-3 4.1.2-2.9-1.1-5.6-3.4-7.6C8.5 5.6 5 8.5 5 14.2 5 18.3 8 21 12 21Z"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   </defs>
 </svg>
@@ -67,6 +69,7 @@
   </a>
   <nav class="nav" role="tablist" aria-label="Разделы">
     <button role="tab" data-view="map" aria-selected="true"><svg class="ic"><use href="#i-map"/></svg><span>Карта</span></button>
+    <button role="tab" data-view="heat"><svg class="ic"><use href="#i-flame"/></svg><span>Жар</span></button>
     <button role="tab" data-view="table"><svg class="ic"><use href="#i-trophy"/></svg><span>Таблица</span></button>
     <button role="tab" data-view="feed"><svg class="ic"><use href="#i-feed"/></svg><span>Лента</span><b class="badge" id="pendingBadge" hidden>0</b></button>
     <button role="tab" data-view="rules"><svg class="ic"><use href="#i-doc"/></svg><span>Правила</span></button>
@@ -106,6 +109,32 @@
     </aside>
     <div class="race" id="race"></div>
     <article class="drawer" id="drawer" hidden></article>
+  </section>
+
+  <!-- ТЕПЛОВАЯ КАРТА -->
+  <section class="view view-heat" id="view-heat" hidden>
+    <div id="heatmap"></div>
+    <div class="heat-year" id="heatYearMark" aria-hidden="true">2026</div>
+    <aside class="heat-card">
+      <div class="eyebrow">Банная тепловая карта</div>
+      <h2>Где жарче всего</h2>
+      <div class="seg" id="hYear" role="group" aria-label="Год">
+        <button data-y="2023" aria-pressed="false">2023</button>
+        <button data-y="2024" aria-pressed="false">2024</button>
+        <button data-y="2025" aria-pressed="false">2025</button>
+        <button data-y="2026" aria-pressed="true">2026</button>
+        <button data-y="all" aria-pressed="false">Все</button>
+      </div>
+      <div class="heat-row">
+        <select id="hPlayer" class="sel" aria-label="Участник"><option value="">Вся лига</option></select>
+        <button class="btn" id="hPlay" type="button"><svg class="ic"><use href="#i-play"/></svg><span>Годы</span></button>
+      </div>
+      <div class="heat-kpis" id="hKpis"></div>
+      <div class="heat-legend"><span>пара ходок</span><i></i><span>место силы</span></div>
+      <h3>Самые горячие точки</h3>
+      <ol class="hot" id="hTop"></ol>
+      <p class="hint" id="hNote"></p>
+    </aside>
   </section>
 
   <!-- ТАБЛИЦА -->
@@ -273,6 +302,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

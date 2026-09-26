@@ -9,21 +9,32 @@ wb = openpyxl.load_workbook(ROOT / "ebl.xlsx", data_only=True)
 TYPES = {"Общественная": "public", "Частная": "private", "Хуитнес/аквапарк/спа": "spa"}
 norm = lambda s: re.sub(r"\s+", " ", str(s)).strip().lower()
 
-# --- типы и история прошлых сезонов (по названию) ---
-bath_type, history = {}, defaultdict(dict)
-for year, sheet, name_col, first_player_col, hdr_row in [
-    (2023, "2023 все бани", 1, 2, 2), (2024, "2024 все бани", 1, 2, 4), (2025, "2025 все бани", 1, 2, 1)]:
+# --- история прошлых сезонов: сопоставляем названия со справочником текущего сезона ---
+from matcher import Matcher
+catalog_rows = [r for r in wb["все бани"].iter_rows(min_row=8, values_only=True) if r[2]]
+matcher = Matcher([(str(r[2]).strip(), r[1], r[0]) for r in catalog_rows])
+SKIP = {"Компания", "Долгая (>2,5ч)", "Ультра Уникальные", "Уникальные", "Региональная", "Общественная"}
+bath_type, history, history_by = {}, defaultdict(dict), defaultdict(dict)
+unmatched = defaultdict(int)
+for year, sheet, hdr_row in [(2023, "2023 все бани", 2), (2024, "2024 все бани", 4), (2025, "2025 все бани", 1)]:
     ws = wb[sheet]
+    names = [str(c.value).strip() if c.value else None for c in ws[hdr_row]][2:]
     cur_type = None
     for row in ws.iter_rows(min_row=hdr_row + 1, values_only=True):
-        name = row[name_col]
+        name = row[1]
         if row[0] in TYPES: cur_type = TYPES[row[0]]
-        if not name or isinstance(name, (int, float)): continue
-        if str(name) in ("Компания", "Долгая (>2,5ч)", "Ультра Уникальные", "Уникальные", "Региональная", "Общественная"): continue
-        total = sum(v for v in row[first_player_col:] if isinstance(v, (int, float)))
-        key = norm(name)
-        if cur_type and year != 2025: bath_type.setdefault(key, cur_type)
-        if total: history[key][year] = int(total)
+        if not name or isinstance(name, (int, float)) or str(name) in SKIP: continue
+        by = {}
+        for p, v in zip(names, row[2:]):
+            if p and isinstance(v, (int, float)) and v: by[p] = by.get(p, 0) + int(v)
+        target = matcher.match(name)
+        if not target:
+            unmatched[year] += sum(by.values()); continue
+        if cur_type and year != 2025: bath_type.setdefault(target, cur_type)
+        if by:
+            history[target][year] = history[target].get(year, 0) + sum(by.values())
+            acc = history_by[target].setdefault(year, {})
+            for p, n in by.items(): acc[p] = acc.get(p, 0) + n
 
 # --- справочник бань текущего сезона ---
 ws = wb["все бани"]
@@ -32,7 +43,7 @@ baths = []
 for i, row in enumerate(ws.iter_rows(min_row=8, values_only=True)):
     if not row[2]: continue
     country, region, name = row[0], row[1], str(row[2]).strip()
-    t = bath_type.get(norm(name))
+    t = bath_type.get(name)
     if country in TYPES:
         t, country = t or TYPES[country], None
     if country == "Тип": continue
@@ -41,7 +52,7 @@ for i, row in enumerate(ws.iter_rows(min_row=8, values_only=True)):
     if not t and ("хуитнес" in low or "аквапарк" in low or " spa" in low or "спа" in low.split()): t = "spa"
     visits = {players[j]: int(v) for j, v in enumerate(row[3:3 + len(players)]) if isinstance(v, (int, float)) and v}
     baths.append({"id": len(baths) + 1, "name": name, "country": country, "region": region,
-                  "type": t, "v26": visits, "hist": history.get(norm(name), {})})
+                  "type": t, "v26": visits, "hist": history.get(name, {}), "histBy": history_by.get(name, {})})
 
 # --- общий и недельный зачёт ---
 ws = wb["Общий зачет"]
@@ -66,4 +77,4 @@ OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "baths.json").write_text(json.dumps(baths, ensure_ascii=False))
 (OUT / "standings.json").write_text(json.dumps(standings, ensure_ascii=False))
 print(len(baths), "baths;", sum(1 for b in baths if b["type"]), "typed;", sum(1 for b in baths if b["v26"]), "visited 2026;",
-      sum(1 for b in baths if b["hist"]), "with history;", len(standings), "players")
+      sum(1 for b in baths if b["hist"]), "with history;", len(standings), "players; unmatched visits", dict(unmatched))
